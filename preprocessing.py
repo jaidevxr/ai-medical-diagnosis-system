@@ -1,185 +1,129 @@
 """
 preprocessing.py
 --------------------------------------------------------------------
-This module holds every data-cleaning and feature-engineering
-function used by the project. Keeping these functions in one file
-means both the EDA notebook and the training script can reuse the
-exact same logic, so the data seen during exploration is guaranteed
-to match the data seen during training.
+Zero-Leakage Data Processing & Feature Engineering Module
 
-Dataset columns (Pima Indians Diabetes Dataset + synthetic expansion):
-    Pregnancies                : number of pregnancies
-    Glucose                    : plasma glucose concentration
-    BloodPressure              : diastolic blood pressure (mm Hg)
-    SkinThickness               : triceps skin fold thickness (mm)
-    Insulin                     : 2-hour serum insulin (mu U/ml)
-    BMI                         : body mass index
-    DiabetesPedigreeFunction    : genetic diabetes risk score
-    Age                         : age in years
-    Outcome                     : 1 = diabetic, 0 = non-diabetic (target)
-    data_source                 : "real_pima" or "synthetic_augmented"
+Guarantees 0% Data Leakage:
+  1. ALL feature imputation and scaling operations are encapsulated
+     inside Scikit-Learn Pipelines and ColumnTransformers.
+  2. Transformers are fitted STRICTLY on training data (`fit_transform`)
+     and applied (`transform`) to validation/test sets.
+  3. Target variable `Outcome` is NEVER used during feature imputation.
 """
 
 import numpy as np
 import pandas as pd
-
-# Columns where a recorded value of 0 is not medically possible.
-# In the raw dataset these zeros are actually missing values that
-# were encoded as 0 instead of being left blank.
-COLUMNS_WHERE_ZERO_MEANS_MISSING = [
-    "Glucose",
-    "BloodPressure",
-    "SkinThickness",
-    "Insulin",
-    "BMI",
-]
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.impute import SimpleImputer
 
 
-def load_raw_dataset(file_path):
-    """Load the combined large dataset from disk."""
-    raw_dataframe = pd.read_csv(file_path)
-    return raw_dataframe
+def load_dataset(file_path):
+    """Load clinical dataset from disk."""
+    return pd.read_csv(file_path)
 
 
-def replace_invalid_zeros_with_missing(input_dataframe):
+def engineer_cdc_features(df):
     """
-    Replace medically impossible zero values with NaN so they can be
-    handled properly by the missing-value imputation step, instead of
-    silently dragging averages down.
+    Applies medically meaningful domain feature engineering to the CDC
+    Diabetes Health Indicators dataset.
+    
+    Features engineered:
+      - BMI_Category: WHO standard body mass index categories.
+      - Age_Group: Binned age categories.
+      - Comorbidity_Index: Count of co-occurring chronic conditions.
+      - Lifestyle_Risk_Score: Unhealthy lifestyle risk factors score.
+      - Health_Impairment_Days: Total days of poor physical + mental health.
     """
-    cleaned_dataframe = input_dataframe.copy()
-    for column_name in COLUMNS_WHERE_ZERO_MEANS_MISSING:
-        zero_mask = cleaned_dataframe[column_name] == 0
-        cleaned_dataframe.loc[zero_mask, column_name] = np.nan
-    return cleaned_dataframe
+    df = df.copy()
+
+    # 1. BMI Category (WHO standard)
+    if "BMI" in df.columns:
+        bmi_edges = [0, 18.5, 24.9, 29.9, 100]
+        bmi_labels = ["Underweight", "Normal", "Overweight", "Obese"]
+        df["BMI_Category"] = pd.cut(df["BMI"], bins=bmi_edges, labels=bmi_labels, include_lowest=True)
+
+    # 2. Age Group (CDC Age variable is 1 to 13)
+    if "Age" in df.columns:
+        # Age 1=18-24, 2=25-29, ..., 13=80+
+        age_edges = [0, 3, 7, 10, 14]
+        age_labels = ["Young_Adult", "Middle_Aged", "Senior", "Elderly"]
+        df["Age_Group"] = pd.cut(df["Age"], bins=age_edges, labels=age_labels, include_lowest=True)
+
+    # 3. Comorbidity Index (Sum of HighBP, HighChol, HeartDiseaseorAttack, Stroke)
+    comorbidity_cols = [c for c in ["HighBP", "HighChol", "HeartDiseaseorAttack", "Stroke"] if c in df.columns]
+    if comorbidity_cols:
+        df["Comorbidity_Index"] = df[comorbidity_cols].sum(axis=1)
+
+    # 4. Lifestyle Risk Score
+    lifestyle_risk = pd.Series(0, index=df.index)
+    if "Smoker" in df.columns:
+        lifestyle_risk += df["Smoker"]
+    if "PhysActivity" in df.columns:
+        lifestyle_risk += (1 - df["PhysActivity"])
+    if "HvyAlcoholConsump" in df.columns:
+        lifestyle_risk += df["HvyAlcoholConsump"]
+    if "Fruits" in df.columns:
+        lifestyle_risk += (1 - df["Fruits"])
+    if "Veggies" in df.columns:
+        lifestyle_risk += (1 - df["Veggies"])
+    df["Lifestyle_Risk_Score"] = lifestyle_risk
+
+    # 5. Total Health Impairment Days
+    if "PhysHlth" in df.columns and "MentHlth" in df.columns:
+        df["Health_Impairment_Days"] = df["PhysHlth"] + df["MentHlth"]
+
+    return df
 
 
-def remove_duplicate_rows(input_dataframe):
-    """Remove exact duplicate rows from the dataset."""
-    number_of_rows_before = input_dataframe.shape[0]
-    deduplicated_dataframe = input_dataframe.drop_duplicates()
-    number_of_rows_after = deduplicated_dataframe.shape[0]
-    number_of_duplicates_removed = number_of_rows_before - number_of_rows_after
-    print("Duplicate rows removed:", number_of_duplicates_removed)
-    return deduplicated_dataframe
-
-
-def fill_missing_values_with_median(input_dataframe):
+def build_preprocessor_pipeline(numeric_features, categorical_features):
     """
-    Fill missing values in each numeric column using the median of
-    that column, split by Outcome group. Using the median (rather
-    than the mean) makes the fill less sensitive to outliers, and
-    splitting by Outcome keeps the imputed values realistic for each
-    class rather than blending diabetic and non-diabetic patterns.
+    Constructs a Scikit-Learn ColumnTransformer pipeline.
+    
+    Guarantees:
+      - Numerical pipeline: SimpleImputer(median) -> StandardScaler()
+      - Categorical pipeline: SimpleImputer(most_frequent) -> OneHotEncoder(ignore)
     """
-    filled_dataframe = input_dataframe.copy()
-    for column_name in COLUMNS_WHERE_ZERO_MEANS_MISSING:
-        median_by_outcome = filled_dataframe.groupby("Outcome")[column_name].transform("median")
-        missing_mask = filled_dataframe[column_name].isna()
-        filled_dataframe.loc[missing_mask, column_name] = median_by_outcome[missing_mask]
-    return filled_dataframe
-
-
-def remove_outliers_using_iqr(input_dataframe, columns_to_check):
-    """
-    Remove rows containing extreme outliers using the Interquartile
-    Range (IQR) method. A value is treated as an outlier if it falls
-    further than 1.5 times the IQR below the first quartile or above
-    the third quartile.
-    """
-    cleaned_dataframe = input_dataframe.copy()
-    for column_name in columns_to_check:
-        first_quartile = cleaned_dataframe[column_name].quantile(0.25)
-        third_quartile = cleaned_dataframe[column_name].quantile(0.75)
-        interquartile_range = third_quartile - first_quartile
-
-        lower_bound = first_quartile - 1.5 * interquartile_range
-        upper_bound = third_quartile + 1.5 * interquartile_range
-
-        within_bounds_mask = cleaned_dataframe[column_name].between(lower_bound, upper_bound)
-        cleaned_dataframe = cleaned_dataframe[within_bounds_mask]
-
-    cleaned_dataframe = cleaned_dataframe.reset_index(drop=True)
-    return cleaned_dataframe
-
-
-def engineer_new_features(input_dataframe):
-    """
-    Create additional clinically-meaningful features from the raw
-    columns. These derived features often help simple models pick up
-    patterns that would otherwise need more complex interactions.
-    """
-    engineered_dataframe = input_dataframe.copy()
-
-    # BMI category, following standard WHO BMI bands.
-    bmi_bin_edges = [0, 18.5, 24.9, 29.9, 100]
-    bmi_bin_labels = ["Underweight", "Normal", "Overweight", "Obese"]
-    engineered_dataframe["BMI_Category"] = pd.cut(
-        engineered_dataframe["BMI"], bins=bmi_bin_edges, labels=bmi_bin_labels
+    numeric_transformer = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+        ]
     )
 
-    # Age group, useful because diabetes risk rises with age.
-    age_bin_edges = [0, 30, 45, 60, 120]
-    age_bin_labels = ["Young", "Middle_Aged", "Senior", "Elderly"]
-    engineered_dataframe["Age_Group"] = pd.cut(
-        engineered_dataframe["Age"], bins=age_bin_edges, labels=age_bin_labels
+    categorical_transformer = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
+        ]
     )
 
-    # Glucose category, based on standard clinical glucose thresholds.
-    glucose_bin_edges = [0, 100, 125, 500]
-    glucose_bin_labels = ["Normal", "Prediabetic", "Diabetic_Range"]
-    engineered_dataframe["Glucose_Category"] = pd.cut(
-        engineered_dataframe["Glucose"], bins=glucose_bin_edges, labels=glucose_bin_labels
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ("num", numeric_transformer, numeric_features),
+            ("cat", categorical_transformer, categorical_features),
+        ],
+        remainder="passthrough",
     )
 
-    # A simple interaction feature: glucose per unit of BMI.
-    engineered_dataframe["Glucose_to_BMI_Ratio"] = (
-        engineered_dataframe["Glucose"] / engineered_dataframe["BMI"]
-    )
-
-    # A simple interaction feature combining age and pregnancies,
-    # since older patients with more pregnancies show higher risk.
-    engineered_dataframe["Age_Pregnancies_Interaction"] = (
-        engineered_dataframe["Age"] * engineered_dataframe["Pregnancies"]
-    )
-
-    return engineered_dataframe
+    return preprocessor
 
 
-def one_hot_encode_categorical_features(input_dataframe, categorical_columns):
-    """Convert categorical columns into one-hot encoded numeric columns."""
-    encoded_dataframe = pd.get_dummies(
-        input_dataframe, columns=categorical_columns, drop_first=True
-    )
-    return encoded_dataframe
-
-
-def run_full_cleaning_pipeline(file_path):
+def get_feature_names_after_preprocessing(preprocessor, numeric_features, categorical_features):
     """
-    Run every cleaning step in order and return a fully cleaned,
-    feature-engineered dataframe ready for modeling.
+    Extracts exact output feature column names from a fitted ColumnTransformer.
     """
-    raw_dataframe = load_raw_dataset(file_path)
+    feature_names = []
 
-    dataframe_with_missing_marked = replace_invalid_zeros_with_missing(raw_dataframe)
-    dataframe_without_duplicates = remove_duplicate_rows(dataframe_with_missing_marked)
-    dataframe_without_missing = fill_missing_values_with_median(dataframe_without_duplicates)
+    # Numerical features remain the same
+    feature_names.extend(numeric_features)
 
-    columns_to_check_for_outliers = ["Glucose", "BloodPressure", "SkinThickness", "Insulin", "BMI"]
-    dataframe_without_outliers = remove_outliers_using_iqr(
-        dataframe_without_missing, columns_to_check_for_outliers
-    )
+    # Categorical features expanded by OneHotEncoder
+    if categorical_features and "cat" in preprocessor.named_transformers_:
+        cat_pipeline = preprocessor.named_transformers_["cat"]
+        onehot_encoder = cat_pipeline.named_steps["onehot"]
+        encoded_cat_names = onehot_encoder.get_feature_names_out(categorical_features)
+        feature_names.extend(list(encoded_cat_names))
 
-    engineered_dataframe = engineer_new_features(dataframe_without_outliers)
-
-    categorical_columns = ["BMI_Category", "Age_Group", "Glucose_Category"]
-    final_dataframe = one_hot_encode_categorical_features(engineered_dataframe, categorical_columns)
-
-    print("Final cleaned dataset shape:", final_dataframe.shape)
-    return final_dataframe
-
-
-if __name__ == "__main__":
-    cleaned_data = run_full_cleaning_pipeline("data/diabetes_large_dataset.csv")
-    cleaned_data.to_csv("data/diabetes_cleaned.csv", index=False)
-    print("Cleaned dataset saved to data/diabetes_cleaned.csv")
+    return feature_names

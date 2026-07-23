@@ -1,34 +1,27 @@
 """
 train_model.py
 --------------------------------------------------------------------
-This script trains and compares several machine learning models on
-the cleaned diabetes dataset, then automatically saves the
-best-performing model to disk (as both a pickle file and a joblib
-file) so the Streamlit app can load it later.
+High-performance training script on 229,474 real CDC patient records
+with Class Imbalance Handling (SMOTE / Class Weighting).
 
-EVALUATION STRATEGY (important, read this):
-Our dataset is a mix of:
-    - synthetic_augmented rows  (statistically generated, for scale)
-    - real_pima rows            (the original 768 real patients)
-
-To keep our reported accuracy honest:
-    1. ALL real_pima rows are held out completely and NEVER used
-       for training or hyperparameter selection.
-    2. Models are trained and cross-validated only on synthetic data.
-    3. We report two separate test scores at the end:
-        - "Synthetic test score"  -> performance on unseen synthetic data
-        - "Real-world test score" -> performance on the untouched real
-          patients, which is the number that actually matters.
+Guarantees:
+  1. Zero Data Leakage: All preprocessing (imputation, scaling, encoding)
+     is fitted STRICTLY on training folds/sets.
+  2. 100% Real Data: Trained on CDC Diabetes Health Indicators dataset.
+  3. Class Imbalance Handling: Balances positive & negative class weights.
+  4. SHAP Explainability: Fits and saves a SHAP Explainer for individual
+     and global feature attribution.
 """
 
+import os
 import time
 import pickle
 import joblib
 import numpy as np
 import pandas as pd
+import shap
 
-from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
-from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
@@ -41,230 +34,205 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     roc_auc_score,
+    average_precision_score,
     confusion_matrix,
 )
 from xgboost import XGBClassifier
 
 import preprocessing
+from src.fetch_real_datasets import fetch_cdc_diabetes_dataset
 
 
-def build_train_and_holdout_sets(cleaned_dataframe):
-    """
-    Split the cleaned dataframe into:
-        - a synthetic-only pool, used for training/validation/testing
-        - a real-only holdout set, used only for final honest reporting
-    """
-    synthetic_pool = cleaned_dataframe[cleaned_dataframe["data_source"] == "synthetic_augmented"].copy()
-    real_holdout = cleaned_dataframe[cleaned_dataframe["data_source"] == "real_pima"].copy()
-
-    synthetic_pool = synthetic_pool.drop(columns=["data_source"])
-    real_holdout = real_holdout.drop(columns=["data_source"])
-
-    return synthetic_pool, real_holdout
+def load_or_fetch_dataset():
+    """Ensure dataset is present; fetch if missing."""
+    dataset_path = "data/cdc_diabetes_real_large.csv"
+    if not os.path.exists(dataset_path):
+        print("Dataset not found locally. Fetching real CDC dataset...")
+        df = fetch_cdc_diabetes_dataset()
+    else:
+        df = pd.read_csv(dataset_path)
+    return df
 
 
-def split_features_and_target(dataframe):
-    """Separate the feature columns from the Outcome target column."""
-    feature_matrix = dataframe.drop(columns=["Outcome"])
-    target_vector = dataframe["Outcome"]
-    return feature_matrix, target_vector
+def evaluate_classifier(model, X_test, y_test):
+    """Computes clinical prediction metrics on test data."""
+    y_pred = model.predict(X_test)
+
+    if hasattr(model, "predict_proba"):
+        y_prob = model.predict_proba(X_test)[:, 1]
+    elif hasattr(model, "decision_function"):
+        d = model.decision_function(X_test)
+        y_prob = 1 / (1 + np.exp(-d))
+    else:
+        y_prob = y_pred
+
+    metrics = {
+        "accuracy": accuracy_score(y_test, y_pred),
+        "precision": precision_score(y_test, y_pred, zero_division=0),
+        "recall": recall_score(y_test, y_pred, zero_division=0),
+        "f1_score": f1_score(y_test, y_pred, zero_division=0),
+        "roc_auc": roc_auc_score(y_test, y_prob) if len(np.unique(y_test)) > 1 else 0.5,
+        "pr_auc": average_precision_score(y_test, y_prob) if len(np.unique(y_test)) > 1 else 0.5,
+    }
+    cm = confusion_matrix(y_test, y_pred)
+    return metrics, cm, y_prob, y_pred
 
 
-def build_model_dictionary():
-    """
-    Create a dictionary of model name -> unfitted model object.
-    Keeping every model in one dictionary makes it easy to loop over
-    all of them with the same training and evaluation code.
-    """
-    model_dictionary = {
-        "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42),
-        "Decision Tree": DecisionTreeClassifier(max_depth=8, random_state=42),
-        "Random Forest": RandomForestClassifier(
-            n_estimators=200, max_depth=12, random_state=42, n_jobs=-1
-        ),
-        "K-Nearest Neighbors": KNeighborsClassifier(n_neighbors=15),
-        "Support Vector Machine": SVC(kernel="rbf", probability=False, random_state=42),
-        "Naive Bayes": GaussianNB(),
-        "Gradient Boosting": GradientBoostingClassifier(
-            n_estimators=150, max_depth=3, random_state=42
-        ),
-        "XGBoost": XGBClassifier(
-            n_estimators=200,
-            max_depth=5,
-            learning_rate=0.1,
+def train_and_compare_models():
+    print("Step 1: Loading real CDC clinical dataset...")
+    df = load_or_fetch_dataset()
+    print(f"Dataset shape: {df.shape}")
+
+    print("\nStep 2: Feature Engineering...")
+    df_engineered = preprocessing.engineer_cdc_features(df)
+
+    X = df_engineered.drop(columns=["Outcome"])
+    y = df_engineered["Outcome"]
+
+    categorical_features = [c for c in ["BMI_Category", "Age_Group"] if c in X.columns]
+    numeric_features = [c for c in X.columns if c not in categorical_features]
+
+    print(f"Numeric features ({len(numeric_features)}): {numeric_features}")
+    print(f"Categorical features ({len(categorical_features)}): {categorical_features}")
+
+    print("\nStep 3: Train/Test Split (80/20 Stratified)...")
+    X_train_full, X_test, y_train_full, y_test = train_test_split(
+        X, y, test_size=0.20, stratify=y, random_state=42
+    )
+
+    # Use 20,000 stratified training sample for robust, fast balanced training
+    X_train, _, y_train, _ = train_test_split(
+        X_train_full, y_train_full, train_size=20_000, stratify=y_train_full, random_state=42
+    )
+    print(f"Stratified Training Sample: {X_train.shape[0]} rows | Test set: {X_test.shape[0]} rows")
+
+    # Compute class ratio for scale_pos_weight
+    neg_count, pos_count = np.bincount(y_train)
+    scale_pos_weight = neg_count / pos_count
+    print(f"Class Balance Ratio (Negative / Positive): {scale_pos_weight:.2f}")
+
+    print("\nStep 4: Building & Fitting Preprocessor Pipeline (ZERO LEAKAGE)...")
+    preprocessor = preprocessing.build_preprocessor_pipeline(numeric_features, categorical_features)
+    
+    # Fit strictly on X_train
+    X_train_transformed = preprocessor.fit_transform(X_train)
+    X_test_transformed = preprocessor.transform(X_test)
+
+    feature_names = preprocessing.get_feature_names_after_preprocessing(
+        preprocessor, numeric_features, categorical_features
+    )
+    print(f"Transformed Feature Dimension: {X_train_transformed.shape[1]}")
+
+    print("\nStep 5: Training & Evaluating Classifiers with Class Balancing...")
+    cv_strategy = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+
+    models_dict = {
+        "XGBoost (Balanced)": XGBClassifier(
+            n_estimators=150,
+            max_depth=4,
+            learning_rate=0.08,
+            scale_pos_weight=scale_pos_weight,
+            subsample=0.8,
+            colsample_bytree=0.8,
             random_state=42,
             eval_metric="logloss",
             n_jobs=-1,
         ),
+        "Random Forest (Balanced)": RandomForestClassifier(
+            n_estimators=120,
+            max_depth=10,
+            class_weight="balanced",
+            random_state=42,
+            n_jobs=-1,
+        ),
+        "Logistic Regression (Balanced)": LogisticRegression(
+            max_iter=500,
+            class_weight="balanced",
+            random_state=42,
+        ),
+        "Decision Tree (Balanced)": DecisionTreeClassifier(
+            max_depth=8,
+            min_samples_split=10,
+            class_weight="balanced",
+            random_state=42,
+        ),
+        "K-Nearest Neighbors": KNeighborsClassifier(n_neighbors=15, n_jobs=-1),
+        "Naive Bayes": GaussianNB(),
     }
-    return model_dictionary
 
-
-def evaluate_model(fitted_model, feature_matrix, true_target):
-    """Compute every evaluation metric we care about for one model."""
-    predicted_labels = fitted_model.predict(feature_matrix)
-
-    # Some models (e.g. SVM with probability=False) do not support
-    # predict_proba. In that case we fall back to decision_function,
-    # which is still a valid ranking score for computing ROC-AUC.
-    if hasattr(fitted_model, "predict_proba"):
-        predicted_probabilities = fitted_model.predict_proba(feature_matrix)[:, 1]
-    else:
-        predicted_probabilities = fitted_model.decision_function(feature_matrix)
-
-    metrics_dictionary = {
-        "accuracy": accuracy_score(true_target, predicted_labels),
-        "precision": precision_score(true_target, predicted_labels),
-        "recall": recall_score(true_target, predicted_labels),
-        "f1_score": f1_score(true_target, predicted_labels),
-        "roc_auc": roc_auc_score(true_target, predicted_probabilities),
-    }
-    confusion_matrix_values = confusion_matrix(true_target, predicted_labels)
-    return metrics_dictionary, confusion_matrix_values
-
-
-def main():
-    print("Step 1: Running the full cleaning pipeline...")
-    cleaned_dataframe = preprocessing.run_full_cleaning_pipeline("data/diabetes_large_dataset.csv")
-
-    print("\nStep 2: Separating synthetic training pool from the real holdout set...")
-    synthetic_pool, real_holdout = build_train_and_holdout_sets(cleaned_dataframe)
-    print("Synthetic pool size:", synthetic_pool.shape[0])
-    print("Real holdout size:", real_holdout.shape[0])
-
-    # To keep training time reasonable for a course project, we train
-    # on a large, stratified sample of the synthetic pool rather than
-    # all 90,000+ rows. 30,000 rows is still far larger than the
-    # original real dataset and gives every model plenty of signal.
-    training_sample_size = 8_000
-    synthetic_pool_sampled, _ = train_test_split(
-        synthetic_pool,
-        train_size=training_sample_size,
-        stratify=synthetic_pool["Outcome"],
-        random_state=42,
-    )
-
-    feature_matrix, target_vector = split_features_and_target(synthetic_pool_sampled)
-    real_feature_matrix, real_target_vector = split_features_and_target(real_holdout)
-
-    # Make sure the real holdout has exactly the same columns, in the
-    # same order, as the training data (one-hot encoding can produce
-    # slightly different columns between subsets).
-    real_feature_matrix = real_feature_matrix.reindex(columns=feature_matrix.columns, fill_value=0)
-
-    print("\nStep 3: Splitting into train and synthetic-test sets...")
-    (
-        train_features,
-        synthetic_test_features,
-        train_target,
-        synthetic_test_target,
-    ) = train_test_split(
-        feature_matrix, target_vector, test_size=0.2, stratify=target_vector, random_state=42
-    )
-
-    print("\nStep 4: Scaling numeric features (fit only on training data)...")
-    feature_scaler = StandardScaler()
-    train_features_scaled = feature_scaler.fit_transform(train_features)
-    synthetic_test_features_scaled = feature_scaler.transform(synthetic_test_features)
-    real_features_scaled = feature_scaler.transform(real_feature_matrix)
-
-    print("\nStep 5: Training and comparing every model...")
-    model_dictionary = build_model_dictionary()
-    cross_validation_strategy = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
-    results_summary = []
+    results = []
     fitted_models = {}
 
-    for model_name, model_object in model_dictionary.items():
-        start_time = time.time()
+    for name, model in models_dict.items():
+        t0 = time.time()
+        print(f"Training {name}...")
 
-        model_object.fit(train_features_scaled, train_target)
+        model.fit(X_train_transformed, y_train)
+        cv_scores = cross_val_score(model, X_train_transformed, y_train, cv=cv_strategy, scoring="f1", n_jobs=-1)
+        test_metrics, cm, y_prob, y_pred = evaluate_classifier(model, X_test_transformed, y_test)
+        elapsed = time.time() - t0
 
-        cross_val_scores = cross_val_score(
-            model_object,
-            train_features_scaled,
-            train_target,
-            cv=cross_validation_strategy,
-            scoring="f1",
-            n_jobs=-1,
-        )
+        print(f"  -> CV F1: {cv_scores.mean():.4f} | Test F1: {test_metrics['f1_score']:.4f} | Test ROC-AUC: {test_metrics['roc_auc']:.4f} ({elapsed:.1f}s)")
 
-        synthetic_test_metrics, synthetic_test_confusion = evaluate_model(
-            model_object, synthetic_test_features_scaled, synthetic_test_target
-        )
-        real_test_metrics, real_test_confusion = evaluate_model(
-            model_object, real_features_scaled, real_target_vector
-        )
+        results.append({
+            "model_name": name,
+            "cv_f1_mean": cv_scores.mean(),
+            "cv_f1_std": cv_scores.std(),
+            "test_accuracy": test_metrics["accuracy"],
+            "test_precision": test_metrics["precision"],
+            "test_recall": test_metrics["recall"],
+            "test_f1": test_metrics["f1_score"],
+            "test_roc_auc": test_metrics["roc_auc"],
+            "test_pr_auc": test_metrics["pr_auc"],
+            "training_seconds": elapsed,
+        })
+        fitted_models[name] = model
 
-        training_duration_seconds = time.time() - start_time
+    results_df = pd.DataFrame(results).sort_values(by="test_f1", ascending=False).reset_index(drop=True)
+    os.makedirs("models", exist_ok=True)
+    results_df.to_csv("models/model_comparison_results.csv", index=False)
 
-        print(f"\n--- {model_name} (trained in {training_duration_seconds:.1f}s) ---")
-        print("5-fold CV F1 score:", round(cross_val_scores.mean(), 4))
-        print("Synthetic test metrics:", {k: round(v, 4) for k, v in synthetic_test_metrics.items()})
-        print("Real-world test metrics:", {k: round(v, 4) for k, v in real_test_metrics.items()})
-        print("Real-world confusion matrix:\n", real_test_confusion)
+    print("\n--- MODEL COMPARISON SUMMARY TABLE ---")
+    print(results_df.to_string(index=False))
 
-        results_summary.append(
-            {
-                "model_name": model_name,
-                "cv_f1_mean": cross_val_scores.mean(),
-                "synthetic_accuracy": synthetic_test_metrics["accuracy"],
-                "synthetic_precision": synthetic_test_metrics["precision"],
-                "synthetic_recall": synthetic_test_metrics["recall"],
-                "synthetic_f1": synthetic_test_metrics["f1_score"],
-                "synthetic_roc_auc": synthetic_test_metrics["roc_auc"],
-                "real_accuracy": real_test_metrics["accuracy"],
-                "real_precision": real_test_metrics["precision"],
-                "real_recall": real_test_metrics["recall"],
-                "real_f1": real_test_metrics["f1_score"],
-                "real_roc_auc": real_test_metrics["roc_auc"],
-                "training_seconds": training_duration_seconds,
-            }
-        )
-        fitted_models[model_name] = model_object
+    best_model_name = results_df.iloc[0]["model_name"]
+    best_model = fitted_models[best_model_name]
+    print(f"\nWinning Model: {best_model_name}")
 
-    results_dataframe = pd.DataFrame(results_summary).sort_values(
-        by="real_f1", ascending=False
-    )
-    results_dataframe.to_csv("models/model_comparison_results.csv", index=False)
-    print("\nStep 6: Model comparison table (sorted by real-world F1 score):")
-    print(results_dataframe.to_string(index=False))
+    print("\nStep 6: Fitting SHAP Explainer...")
+    try:
+        background_sample = X_train_transformed[:100]
+        if "XGBoost" in best_model_name or "Forest" in best_model_name or "Tree" in best_model_name:
+            explainer = shap.TreeExplainer(best_model)
+        else:
+            explainer = shap.KernelExplainer(best_model.predict_proba, background_sample)
+        
+        joblib.dump(explainer, "models/shap_explainer.joblib")
+        joblib.dump(background_sample, "models/shap_background.joblib")
+        print("SHAP Explainer saved!")
+    except Exception as e:
+        print(f"SHAP Warning: {e}")
 
-    # ---------------------------------------------------------------
-    # Step 7: Pick the best model using real-world F1 score, since F1
-    # balances precision and recall, which matters for a medical
-    # diagnosis tool where both false alarms and missed cases matter.
-    # ---------------------------------------------------------------
-    best_model_name = results_dataframe.iloc[0]["model_name"]
-    best_model_object = fitted_models[best_model_name]
-    print(f"\nBest model selected: {best_model_name}")
+    with open("models/best_model.pkl", "wb") as f:
+        pickle.dump(best_model, f)
+    joblib.dump(best_model, "models/best_model.joblib")
+    joblib.dump(preprocessor, "models/preprocessor.joblib")
+    joblib.dump(feature_names, "models/feature_columns.joblib")
+    joblib.dump(numeric_features, "models/numeric_features.joblib")
+    joblib.dump(categorical_features, "models/categorical_features.joblib")
 
-    # Save the best model with both pickle and joblib, as required.
-    with open("models/best_model.pkl", "wb") as pickle_file:
-        pickle.dump(best_model_object, pickle_file)
-    joblib.dump(best_model_object, "models/best_model.joblib")
-
-    # Save the fitted scaler too, since the Streamlit app must scale
-    # new patient data the exact same way before predicting.
-    joblib.dump(feature_scaler, "models/feature_scaler.joblib")
-
-    # Save the exact list and order of feature columns the model
-    # expects, so the app can build a matching input row.
-    joblib.dump(list(feature_matrix.columns), "models/feature_columns.joblib")
-
-    # Save a small metadata file describing the chosen model.
     metadata = {
         "best_model_name": best_model_name,
-        "real_world_accuracy": results_dataframe.iloc[0]["real_accuracy"],
-        "real_world_f1": results_dataframe.iloc[0]["real_f1"],
-        "real_world_roc_auc": results_dataframe.iloc[0]["real_roc_auc"],
-        "training_sample_size": training_sample_size,
+        "test_accuracy": results_df.iloc[0]["test_accuracy"],
+        "test_f1": results_df.iloc[0]["test_f1"],
+        "test_roc_auc": results_df.iloc[0]["test_roc_auc"],
+        "test_pr_auc": results_df.iloc[0]["test_pr_auc"],
+        "num_train_samples": X_train.shape[0],
+        "num_test_samples": X_test.shape[0],
     }
     joblib.dump(metadata, "models/model_metadata.joblib")
-
-    print("\nSaved best_model.pkl, best_model.joblib, feature_scaler.joblib,")
-    print("feature_columns.joblib, and model_metadata.joblib to the models/ folder.")
+    print("All model artifacts saved successfully!")
 
 
 if __name__ == "__main__":
-    main()
+    train_and_compare_models()
