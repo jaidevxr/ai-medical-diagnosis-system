@@ -60,7 +60,8 @@ Medical-Diagnosis-System/
 
 ```bash
 # 1. Clone the repository
-cd Medical-Diagnosis-System
+git clone https://github.com/jaidevxr/ai-medical-diagnosis-system.git
+cd ai-medical-diagnosis-system
 
 # 2. Install dependencies
 pip install -r requirements.txt
