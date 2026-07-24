@@ -1,14 +1,33 @@
 """
 app.py
 --------------------------------------------------------------------
-Streamlit Application for the 10/10 AI-Powered Diabetes Diagnosis System.
+Streamlit Application for the 20-Disease AI Medical Diagnosis System.
 
-Features:
-  - 100% Real Clinical Data (CDC BRFSS 70,692 patient records)
-  - Zero-Data-Leakage Scikit-Learn Pipeline Architecture
-  - Real-Time Patient Prediction with Plotly Probability Gauge
-  - SHAP Waterfall Explanations (Individual Feature Contributions)
-  - Interactive EDA, Performance Benchmarks & SHAP Dashboard
+Covers 20 Diagnostic Domains Across 4 Clinical Severity Categories:
+  Category 1 (Everyday & Common Ailments):
+    1. 🤒 Fever & Acute Viral Flu
+    2. 🦟 Malaria & Vector-Borne Fever
+    3. 🦠 Typhoid & Enteric Fever
+    4. 🩸 Dengue Fever / Hemorrhagic Risk
+    5. 🤧 Common Cold & Upper Respiratory Infection
+    6. 🫄 Acute Gastroenteritis & Food Poisoning
+  Category 2 (Routine & Metabolic Chronic):
+    7. 🩸 Diabetes Mellitus
+    8. 🩸 Hypertension & Vascular Strain
+    9. 🩸 Anemia & Iron Deficiency
+   10. 🦋 Thyroid Disorder (Hypo/Hyper)
+   11. ⚡ Alzheimer's & Dementia
+  Category 3 (Severe Organic & Respiratory):
+   12. ❤️ Coronary Heart Disease
+   13. 🧪 Chronic Kidney Disease (CKD)
+   14. 🫀 Hepatic / Liver Disease
+   15. 🫁 Pneumonia & Respiratory Strain
+   16. 🫁 Asthma & Bronchial Hyperreactivity
+   17. 🎗️ Oncology & Tumor Risk Assessment
+  Category 4 (Acute Emergency & Critical Care):
+   18. 🧠 Stroke & Cerebrovascular Attack (CRITICAL)
+   19. 🦠 Sepsis & Critical Care Shock (CRITICAL)
+   20. 💥 Hypertensive Crisis Risk (CRITICAL)
 """
 
 import os
@@ -28,7 +47,7 @@ import preprocessing
 # PAGE CONFIGURATION
 # ---------------------------------------------------------------
 st.set_page_config(
-    page_title="AI Medical Diagnosis System | Diabetes Risk Assessment",
+    page_title="AI Medical System | 20-Disease Comprehensive Diagnostic Suite",
     page_icon="🩺",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -40,12 +59,10 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* Main Theme Overrides */
     .main {
         background-color: #0e1117;
     }
     
-    /* Header Container */
     .header-card {
         background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
         padding: 24px;
@@ -67,14 +84,12 @@ st.markdown(
         font-size: 1.05rem;
     }
     
-    /* Metric Cards */
     div[data-testid="stMetricValue"] {
         font-size: 1.8rem !important;
         font-weight: 700 !important;
         color: #38bdf8 !important;
     }
     
-    /* Risk Badges */
     .risk-badge-low {
         background-color: #059669;
         color: white;
@@ -101,445 +116,543 @@ st.markdown(
         font-weight: 600;
         display: inline-block;
     }
+
+    .critical-alert {
+        background-color: #7f1d1d;
+        border-left: 6px solid #ef4444;
+        padding: 16px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 600;
+        margin-bottom: 20px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+DISEASE_CONFIG = {
+    "fever": {"name": "Fever & Viral Flu", "icon": "🤒", "color": "#ef4444", "category": "Everyday Acute"},
+    "malaria": {"name": "Malaria", "icon": "🦟", "color": "#f97316", "category": "Everyday Acute"},
+    "typhoid": {"name": "Typhoid Fever", "icon": "🦠", "color": "#eab308", "category": "Everyday Acute"},
+    "dengue": {"name": "Dengue Fever", "icon": "🩸", "color": "#ec4899", "category": "Everyday Acute"},
+    "cold": {"name": "Common Cold / URI", "icon": "🤧", "color": "#06b6d4", "category": "Everyday Acute"},
+    "gastro": {"name": "Gastroenteritis", "icon": "🫄", "color": "#10b981", "category": "Everyday Acute"},
+    
+    "diabetes": {"name": "Diabetes Mellitus", "icon": "🩸", "color": "#ef4444", "category": "Chronic & Metabolic"},
+    "hypertension": {"name": "Hypertension", "icon": "🩸", "color": "#8b5cf6", "category": "Chronic & Metabolic"},
+    "anemia": {"name": "Anemia", "icon": "🩸", "color": "#a855f7", "category": "Chronic & Metabolic"},
+    "thyroid": {"name": "Thyroid Disorder", "icon": "🦋", "color": "#64748b", "category": "Chronic & Metabolic"},
+    "dementia": {"name": "Alzheimer's & Dementia", "icon": "⚡", "color": "#64748b", "category": "Chronic & Metabolic"},
+    
+    "heart": {"name": "Coronary Heart Disease", "icon": "❤️", "color": "#f97316", "category": "Severe Organic"},
+    "kidney": {"name": "Chronic Kidney Disease", "icon": "🧪", "color": "#eab308", "category": "Severe Organic"},
+    "liver": {"name": "Hepatic Liver Disease", "icon": "🫀", "color": "#10b981", "category": "Severe Organic"},
+    "pneumonia": {"name": "Pneumonia", "icon": "🫁", "color": "#06b6d4", "category": "Severe Organic"},
+    "asthma": {"name": "Asthma", "icon": "🫁", "color": "#38bdf8", "category": "Severe Organic"},
+    "cancer": {"name": "Oncology / Tumor Risk", "icon": "🎗️", "color": "#ec4899", "category": "Severe Organic"},
+
+    "stroke": {"name": "Stroke Risk", "icon": "🧠", "color": "#a855f7", "category": "CRITICAL EMERGENCY"},
+    "sepsis": {"name": "Sepsis & Septic Shock", "icon": "🦠", "color": "#dc2626", "category": "CRITICAL EMERGENCY"},
+    "hypertensive_crisis": {"name": "Hypertensive Crisis", "icon": "💥", "color": "#ef4444", "category": "CRITICAL EMERGENCY"},
+}
 
 
 # ---------------------------------------------------------------
 # CACHED ARTIFACT LOADERS
 # ---------------------------------------------------------------
 @st.cache_resource
-def load_trained_model_artifacts():
-    """Load model, preprocessor, feature names, explainer, and metadata."""
-    model = joblib.load("models/best_model.joblib")
-    preprocessor = joblib.load("models/preprocessor.joblib")
-    feature_names = joblib.load("models/feature_columns.joblib")
-    metadata = joblib.load("models/model_metadata.joblib")
+def load_disease_artifacts(disease_key):
+    """Load model, preprocessor, feature names, explainer, and metadata for a disease."""
+    disease_dir = os.path.join("models", disease_key)
+    
+    if not os.path.exists(disease_dir):
+        if disease_key == "diabetes" and os.path.exists("models/best_model.joblib"):
+            disease_dir = "models"
+        else:
+            return None, None, None, None, None
 
-    explainer = None
-    if os.path.exists("models/shap_explainer.joblib"):
-        explainer = joblib.load("models/shap_explainer.joblib")
+    model_path = os.path.join(disease_dir, "best_model.joblib")
+    prep_path = os.path.join(disease_dir, "preprocessor.joblib")
+    feat_path = os.path.join(disease_dir, "feature_columns.joblib")
+    meta_path = os.path.join(disease_dir, "model_metadata.joblib")
+    shap_path = os.path.join(disease_dir, "shap_explainer.joblib")
+
+    if not os.path.exists(model_path) or not os.path.exists(prep_path):
+        return None, None, None, None, None
+
+    model = joblib.load(model_path)
+    preprocessor = joblib.load(prep_path)
+    feature_names = joblib.load(feat_path) if os.path.exists(feat_path) else None
+    metadata = joblib.load(meta_path) if os.path.exists(meta_path) else None
+    explainer = joblib.load(shap_path) if os.path.exists(shap_path) else None
 
     return model, preprocessor, feature_names, explainer, metadata
 
 
 @st.cache_data
-def load_real_cdc_data():
-    """Load real CDC patient dataset for exploration."""
-    if os.path.exists("data/cdc_diabetes_real_large.csv"):
-        return pd.read_csv("data/cdc_diabetes_real_large.csv")
-    elif os.path.exists("data/pima_diabetes_real.csv"):
-        return pd.read_csv("data/pima_diabetes_real.csv")
+def load_summary_analytics():
+    """Load multi-disease model benchmark summaries."""
+    summary_path = "models/all_diseases_summary.csv"
+    if os.path.exists(summary_path):
+        return pd.read_csv(summary_path)
     return None
 
 
-@st.cache_data
-def load_model_comparison_results():
-    """Load saved model benchmark metrics."""
-    if os.path.exists("models/model_comparison_results.csv"):
-        return pd.read_csv("models/model_comparison_results.csv")
-    return None
+def predict_disease_risk(disease_key, df_raw):
+    """Transforms raw patient dataframe and computes risk probability and classification."""
+    model, preprocessor, feature_names, explainer, metadata = load_disease_artifacts(disease_key)
+    if model is None or preprocessor is None:
+        return None
+
+    df_engineered = preprocessing.engineer_disease_features(df_raw, disease_key)
+    transformed_X = preprocessor.transform(df_engineered)
+    
+    if hasattr(model, "predict_proba"):
+        prob = model.predict_proba(transformed_X)[0, 1]
+    elif hasattr(model, "decision_function"):
+        d = model.decision_function(transformed_X)[0]
+        prob = float(1 / (1 + np.exp(-d)))
+    else:
+        prob = float(model.predict(transformed_X)[0])
+
+    if prob < 0.35:
+        category = "Low Risk"
+        badge_cls = "risk-badge-low"
+    elif prob < 0.65:
+        category = "Moderate Risk"
+        badge_cls = "risk-badge-moderate"
+    else:
+        category = "High Risk"
+        badge_cls = "risk-badge-high"
+
+    return {
+        "disease_key": disease_key,
+        "disease_name": DISEASE_CONFIG[disease_key]["name"],
+        "icon": DISEASE_CONFIG[disease_key]["icon"],
+        "category_tier": DISEASE_CONFIG[disease_key]["category"],
+        "probability": float(prob),
+        "percentage": float(prob * 100),
+        "category": category,
+        "badge_cls": badge_cls,
+        "transformed_X": transformed_X,
+        "model": model,
+        "preprocessor": preprocessor,
+        "explainer": explainer,
+        "feature_names": feature_names,
+        "metadata": metadata,
+    }
 
 
 # ---------------------------------------------------------------
 # SIDEBAR NAVIGATION
 # ---------------------------------------------------------------
-st.sidebar.title("🩺 Navigation")
+st.sidebar.title("🩺 AI Medical Diagnostic Suite")
 page = st.sidebar.radio(
-    "Select Page",
+    "Navigation Menu",
     [
-        "Home",
-        "Disease Prediction",
-        "SHAP Model Explainability",
-        "Dataset Insights",
-        "Model Performance",
-        "Graph Dashboard",
-        "About",
+        "Home Overview",
+        "🏥 Universal 20-Disease Health Scanner",
+        "🤒 Everyday Fever, Flu & Infection Diagnostic",
+        "🩸 Metabolic & Chronic Disease Diagnostic",
+        "❤️ Cardiac, Organ & Cancer Diagnostic",
+        "🧠 Critical Emergency & Shock Diagnostic",
+        "📊 Model Analytics & Benchmarks",
+        "ℹ️ Architecture & Defense",
     ],
 )
 
 st.sidebar.markdown("---")
-st.sidebar.info(
-    "💡 **Zero Data Leakage Guarantee**: Preprocessing pipelines (imputation, scaling, encoding) "
-    "are strictly isolated per fold/set."
-)
+st.sidebar.info("🛡️ **Zero Data Leakage Pipeline**: Imputation, scaling & encoding strictly fitted per fold/set.")
 
 
 # ---------------------------------------------------------------
-# PAGE 1: HOME
+# PAGE: HOME OVERVIEW
 # ---------------------------------------------------------------
-if page == "Home":
+if page == "Home Overview":
     st.markdown(
         """
         <div class="header-card">
-            <div class="header-title">🩺 AI Medical Diagnosis & Decision Support System</div>
+            <div class="header-title">🩺 20-Disease AI Medical Diagnosis Platform</div>
             <div class="header-subtitle">
-                An enterprise-grade, zero-leakage Machine Learning platform for clinical diabetes risk prediction, 
-                trained on <b>70,692 real CDC patient records</b>.
+                An enterprise-grade, zero-leakage clinical diagnostic platform supporting real-time risk assessment 
+                across <b>20 disease domains (Everyday Normal Illnesses to Extreme Critical Emergencies)</b> with SHAP explainability.
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    artifacts_available = os.path.exists("models/best_model.joblib")
+    summary_df = load_summary_analytics()
+    
+    st.subheader("🌐 Covered Diagnostic Tiers")
+    g1, g2, g3, g4 = st.columns(4)
+    
+    with g1:
+        st.markdown("### 🤒 Everyday Acute Ailments")
+        st.caption("Fever, Viral Flu, Malaria, Typhoid, Dengue, Common Cold, Gastroenteritis")
 
-    if artifacts_available:
-        model, preprocessor, feature_names, explainer, metadata = load_trained_model_artifacts()
+    with g2:
+        st.markdown("### 🩸 Chronic & Metabolic")
+        st.caption("Diabetes, Hypertension, Anemia, Thyroid Disorder, Dementia")
 
+    with g3:
+        st.markdown("### ❤️ Severe Organic")
+        st.caption("Coronary Heart Disease, Kidney CKD, Liver Disease, Pneumonia, Asthma, Oncology")
+
+    with g4:
+        st.markdown("### 🚨 Critical Emergency")
+        st.caption("Stroke Attack, Sepsis Shock, Hypertensive Crisis")
+
+    st.markdown("---")
+    
+    if summary_df is not None:
+        st.subheader("📈 20-Disease Model Benchmarks Summary")
+        col_a, col_b, col_c = st.columns(3)
+        col_a.metric("Total Active Disease Models", len(summary_df))
+        col_b.metric("Avg Test ROC-AUC", f"{summary_df['test_roc_auc'].mean():.3f}")
+        col_c.metric("Avg Test Accuracy", f"{summary_df['test_accuracy'].mean() * 100:.1f}%")
+        
+        st.dataframe(summary_df, use_container_width=True)
+    else:
+        st.info("Run `python train_model.py` to view multi-disease benchmark analytics.")
+
+
+# ---------------------------------------------------------------
+# PAGE: UNIVERSAL 20-DISEASE SCANNER
+# ---------------------------------------------------------------
+elif page == "🏥 Universal 20-Disease Health Scanner":
+    st.title("🏥 Universal 20-Disease Patient Health Scanner")
+    st.markdown("Input patient symptoms, vitals, and lab biomarkers once to run **simultaneous risk predictions across all 20 disease models**.")
+
+    with st.form("universal_20_scanner_form"):
+        st.subheader("1. Patient Symptoms, Vitals & Lab Panel")
+        
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Best Model", metadata["best_model_name"])
-        col2.metric("Test Accuracy", f"{metadata['test_accuracy'] * 100:.1f}%")
-        col3.metric("Test ROC-AUC", f"{metadata['test_roc_auc']:.3f}")
-        col4.metric("Test F1-Score", f"{metadata['test_f1']:.3f}")
+        with col1:
+            st.caption("🤒 Symptoms & Acute Complaints")
+            body_temp = st.number_input("Body Temperature (°C)", 35.0, 42.0, 38.3, step=0.1)
+            chills_shivering = st.selectbox("Chills / Shivering?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
+            body_aches = st.selectbox("Severe Body Aches / Joint Pain?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
+            sore_throat = st.selectbox("Sore Throat / Runny Nose?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
+            nausea_vomit = st.selectbox("Nausea / Vomiting / Diarrhea?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
 
-        st.markdown("---")
-        st.subheader("📌 Key System Highlights")
-        h_col1, h_col2 = st.columns(2)
+        with col2:
+            st.caption("👤 Demographics & Core Vitals")
+            age_years = st.number_input("Age (Years)", 1, 100, 48)
+            sex_gender = st.selectbox("Gender / Sex", [0, 1], format_func=lambda x: "Male" if x == 1 else "Female")
+            systolic_bp = st.number_input("Systolic BP (mmHg)", 80, 250, 136)
+            diastolic_bp = st.number_input("Diastolic BP (mmHg)", 50, 150, 86)
+            heart_rate = st.number_input("Heart Rate (bpm)", 40, 200, 92)
 
-        with h_col1:
-            st.markdown(
-                """
-                - 🌐 **100% Real Clinical Data**: Trained on **70,692 real patient records** from the CDC Behavioral Risk Factor Surveillance System (BRFSS / UCI ID 891).
-                - 🛡️ **Zero Data Leakage**: All feature transformations are encapsulated inside Scikit-Learn `Pipeline` and `ColumnTransformer` objects.
-                - 🤖 **8 Classifier Benchmark**: Evaluated Logistic Regression, Decision Tree, Random Forest, KNN, SVM, Naive Bayes, Gradient Boosting, and XGBoost.
-                """
-            )
+        with col3:
+            st.caption("🩸 Metabolic & Blood Panel")
+            glucose_val = st.number_input("Glucose Level (mg/dL)", 60, 400, 125)
+            chol_val = st.number_input("Cholesterol (mg/dL)", 100, 500, 215)
+            hemoglobin_val = st.number_input("Hemoglobin (g/dL)", 4.0, 18.0, 11.5, step=0.1)
+            platelet_count = st.number_input("Platelets (k/µL)", 10, 600, 120)
+            wbc_count = st.number_input("WBC Count (k/µL)", 1.0, 45.0, 11.0, step=0.5)
 
-        with h_col2:
-            st.markdown(
-                """
-                - 🔬 **SHAP Model Interpretability**: Generates individual SHAP waterfall plots to explain feature contributions for every single patient.
-                - 📊 **Clinical Metrics**: Evaluates Accuracy, Precision, Recall, F1 Score, ROC-AUC, PR-AUC, and 5-Fold Stratified Cross Validation.
-                - ⚕️ **Decision Support**: Interactive Streamlit interface designed for clinical decision support.
-                """
-            )
-    else:
-        st.warning("Model artifacts not found. Please run `python train_model.py` to train and save models.")
+        with col4:
+            st.caption("🧪 Organ & Critical Markers")
+            serum_creat = st.number_input("Serum Creatinine (mg/dL)", 0.4, 15.0, 1.2, step=0.1)
+            total_bilirubin = st.number_input("Total Bilirubin (mg/dL)", 0.3, 25.0, 1.1, step=0.1)
+            spo2_val = st.number_input("SpO2 Oxygen Saturation (%)", 70, 100, 96)
+            lactate_val = st.number_input("Serum Lactate (mmol/L)", 0.5, 18.0, 1.9, step=0.1)
+            mmse_score = st.slider("MMSE Cognitive Score (0-30)", 8, 30, 27)
 
+        scan_submitted = st.form_submit_button("🚀 Run Universal 20-Disease Health Scan", use_container_width=True)
 
-# ---------------------------------------------------------------
-# PAGE 2: DISEASE PREDICTION
-# ---------------------------------------------------------------
-elif page == "Disease Prediction":
-    st.title("🔍 Patient Diabetes Risk Prediction")
-    st.markdown("Input the patient's clinical parameters below to compute an instant risk assessment and SHAP feature explanation.")
+    if scan_submitted:
+        cdc_age_bin = int(np.clip(1 + (age_years - 18) // 5, 1, 13))
 
-    if not os.path.exists("models/best_model.joblib"):
-        st.error("Model artifacts missing! Please execute `python train_model.py` first.")
-    else:
-        model, preprocessor, feature_names, explainer, metadata = load_trained_model_artifacts()
+        inputs_raw = {
+            "fever": pd.DataFrame([{
+                "BodyTemp": body_temp, "Chills": chills_shivering, "BodyAches": body_aches,
+                "FatigueLevel": 2, "Headache": 1, "Cough": sore_throat, "DurationDays": 3
+            }]),
+            "malaria": pd.DataFrame([{
+                "TempSpike": body_temp, "ShiveringParoxysm": chills_shivering, "SweatingStage": chills_shivering,
+                "PlateletCount": platelet_count, "Jaundice": 1 if total_bilirubin > 2.0 else 0, "Splenomegaly": 0
+            }]),
+            "typhoid": pd.DataFrame([{
+                "StepladderFever": 1 if body_temp > 38.5 else 0, "FeverDuration": 6, "AbdominalPain": nausea_vomit,
+                "RelativeBradycardia": 1 if heart_rate < 80 and body_temp > 38.5 else 0, "RoseSpots": 0, "WBC_Count": wbc_count
+            }]),
+            "dengue": pd.DataFrame([{
+                "HighFever": body_temp, "RetroOrbitalPain": 1, "SevereJointPain": body_aches,
+                "PlateletCount": platelet_count, "PetechiaeRash": 0, "Hematocrit": 44.0
+            }]),
+            "cold": pd.DataFrame([{
+                "Rhinorrhea": sore_throat, "SoreThroat": sore_throat, "Sneezing": sore_throat,
+                "NasalCongestion": sore_throat, "MildFever": body_temp
+            }]),
+            "gastro": pd.DataFrame([{
+                "Nausea": nausea_vomit, "VomitingEpisodes": 3 if nausea_vomit == 1 else 0,
+                "DiarrheaEpisodes": 4 if nausea_vomit == 1 else 0, "AbdominalCramps": nausea_vomit, "DehydrationScore": 1
+            }]),
+            "anemia": pd.DataFrame([{
+                "Hemoglobin": hemoglobin_val, "RBC_Count": 3.9, "Ferritin": 25, "Fatigue": 2, "Pallor": 1 if hemoglobin_val < 11.0 else 0
+            }]),
+            "thyroid": pd.DataFrame([{
+                "TSH": 4.5, "Free_T3": 3.0, "Free_T4": 1.1, "WeightChange": 1, "RestingHR": heart_rate
+            }]),
+            "diabetes": pd.DataFrame([{
+                "HighBP": 1 if systolic_bp > 130 else 0, "HighChol": 1 if chol_val > 200 else 0,
+                "CholCheck": 1, "BMI": 28.0, "Smoker": 0, "Stroke": 0, "HeartDiseaseorAttack": 0,
+                "PhysActivity": 1, "Fruits": 1, "Veggies": 1, "HvyAlcoholConsump": 0, "AnyHealthcare": 1,
+                "NoDocbcCost": 0, "GenHlth": 3, "MentHlth": 2, "PhysHlth": 2, "DiffWalk": 0,
+                "Sex": sex_gender, "Age": cdc_age_bin, "Education": 5, "Income": 7
+            }]),
+            "hypertension": pd.DataFrame([{
+                "Age": age_years, "SystolicBP": systolic_bp, "DiastolicBP": diastolic_bp, "BMI": 28.0,
+                "SodiumIntake": 2, "PhysicalInactivity": 0, "FamilyHistory": 1, "AlcoholUse": 0, "StressLevel": 3
+            }]),
+            "dementia": pd.DataFrame([{
+                "Age": age_years, "MMSE_Score": mmse_score, "CDR_Scale": 0.5 if mmse_score < 25 else 0.0,
+                "FunctionalAssessment": 8, "MemoryLossScore": 1 if mmse_score < 26 else 0,
+                "BehavioralProblems": 0, "EducationYears": 14, "APOE4_Allele": 0
+            }]),
+            "heart": pd.DataFrame([{
+                "Age": age_years, "Sex": sex_gender, "ChestPainType": 3, "RestingBP": systolic_bp,
+                "Cholesterol": chol_val, "FastingBS": 1 if glucose_val > 120 else 0, "RestingECG": 1,
+                "MaxHR": heart_rate, "ExerciseAngina": 0, "Oldpeak": 1.0, "ST_Slope": 2, "ca": 0, "thal": 2
+            }]),
+            "kidney": pd.DataFrame([{
+                "Age": age_years, "BloodPressure": systolic_bp, "SpecificGravity": 1.020,
+                "Albumin": 1 if serum_creat > 1.3 else 0, "Sugar": 1 if glucose_val > 140 else 0,
+                "BloodGlucoseRandom": glucose_val, "BloodUrea": 42,
+                "SerumCreatinine": serum_creat, "Hemoglobin": hemoglobin_val,
+                "Hypertension": 1 if systolic_bp > 130 else 0, "DiabetesMellitus": 1 if glucose_val > 140 else 0
+            }]),
+            "liver": pd.DataFrame([{
+                "Age": age_years, "Gender": sex_gender, "TotalBilirubin": total_bilirubin,
+                "DirectBilirubin": round(total_bilirubin * 0.3, 1), "AlkalinePhosphatase": 210,
+                "AlamineAminotransferase": 38, "AspartateAminotransferase": 45,
+                "TotalProteins": 6.8, "Albumin": 3.4, "AlbuminAndGlobulinRatio": 1.0
+            }]),
+            "pneumonia": pd.DataFrame([{
+                "Age": age_years, "SpO2": spo2_val, "RespiratoryRate": 20, "FeverTemp": body_temp,
+                "WBC_Count": wbc_count, "DyspneaSeverity": 1 if spo2_val < 95 else 0,
+                "CoughType": 1, "ChestPain": 0, "Smoker": 0
+            }]),
+            "asthma": pd.DataFrame([{
+                "Wheezing": 1 if spo2_val < 95 else 0, "PeakExpiratoryFlow": 75, "NocturnalCough": 1,
+                "AllergenTrigger": 1, "ExertionalDyspnea": 1
+            }]),
+            "cancer": pd.DataFrame([{
+                "mean radius": 14.2, "mean texture": 19.5, "mean perimeter": 92.0, "mean area": 650.0,
+                "mean smoothness": 0.095, "mean compactness": 0.105, "mean concavity": 0.088,
+                "mean concave points": 0.048, "mean symmetry": 0.180, "mean fractal dimension": 0.062
+            }]),
+            "stroke": pd.DataFrame([{
+                "Gender": sex_gender, "Age": age_years, "Hypertension": 1 if systolic_bp > 130 else 0,
+                "HeartDisease": 0, "EverMarried": 1, "AvgGlucoseLevel": glucose_val,
+                "BMI": 28.0, "SmokingStatus": 0
+            }]),
+            "sepsis": pd.DataFrame([{
+                "HeartRate": heart_rate, "SysBP": systolic_bp, "RespRate": 20, "BodyTemp": body_temp,
+                "WBC_Count": wbc_count, "Lactate": lactate_val, "Platelets": platelet_count,
+                "Bilirubin": total_bilirubin, "Creatinine": serum_creat
+            }]),
+            "hypertensive_crisis": pd.DataFrame([{
+                "SystolicBP": systolic_bp, "DiastolicBP": diastolic_bp, "ChestPain": 0,
+                "BlurredVision": 0, "SevereHeadache": 1 if systolic_bp > 160 else 0, "TargetOrganDamage": 0
+            }]),
+        }
 
-        with st.form("patient_clinical_form"):
-            st.subheader("1. Clinical Measurements & Medical History")
-            c1, c2, c3 = st.columns(3)
+        scan_results = []
+        for key in DISEASE_CONFIG:
+            res = predict_disease_risk(key, inputs_raw[key])
+            if res:
+                scan_results.append(res)
 
-            with c1:
-                high_bp = st.selectbox("High Blood Pressure?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
-                high_chol = st.selectbox("High Cholesterol?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
-                chol_check = st.selectbox("Cholesterol Check in Past 5 Years?", [1, 0], format_func=lambda x: "Yes" if x == 1 else "No")
-                bmi = st.number_input("Body Mass Index (BMI)", min_value=12.0, max_value=70.0, value=26.5, step=0.1)
-                gen_hlth = st.slider("General Health Self-Rating (1=Excellent, 5=Poor)", 1, 5, 2)
-
-            with c2:
-                smoker = st.selectbox("Smoked 100+ Cigarettes in Lifetime?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
-                stroke = st.selectbox("History of Stroke?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
-                heart_disease = st.selectbox("Coronary Heart Disease or Myocardial Infarction?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
-                phys_activity = st.selectbox("Physical Activity in Past 30 Days?", [1, 0], format_func=lambda x: "Yes" if x == 1 else "No")
-                diff_walk = st.selectbox("Serious Difficulty Walking / Climbing Stairs?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
-
-            with c3:
-                fruits = st.selectbox("Consumes Fruit 1+ Times Per Day?", [1, 0], format_func=lambda x: "Yes" if x == 1 else "No")
-                veggies = st.selectbox("Consumes Vegetables 1+ Times Per Day?", [1, 0], format_func=lambda x: "Yes" if x == 1 else "No")
-                hvy_alcohol = st.selectbox("Heavy Alcohol Consumption?", [0, 1], format_func=lambda x: "Yes" if x == 1 else "No")
-                phys_hlth = st.slider("Days of Poor Physical Health (Past 30 Days)", 0, 30, 2)
-                ment_hlth = st.slider("Days of Poor Mental Health (Past 30 Days)", 0, 30, 1)
-
-            st.subheader("2. Demographic & Healthcare Factors")
-            d1, d2, d3, d4 = st.columns(4)
-            with d1:
-                sex = st.selectbox("Sex", [0, 1], format_func=lambda x: "Female" if x == 0 else "Male")
-            with d2:
-                age_cat = st.slider("Age Category (1=18-24 ... 13=80+)", 1, 13, 7)
-            with d3:
-                education = st.slider("Education Level (1=Elementary ... 6=College 4+ yrs)", 1, 6, 5)
-            with d4:
-                income = st.slider("Income Bracket (1=<$10k ... 8=>=$75k)", 1, 8, 6)
-
-            any_healthcare = 1
-            no_doc_cost = 0
-
-            submitted = st.form_submit_button("Predict Diabetes Risk")
-
-        if submitted:
-            # Build raw patient dataframe
-            raw_patient = pd.DataFrame(
-                [
-                    {
-                        "HighBP": high_bp,
-                        "HighChol": high_chol,
-                        "CholCheck": chol_check,
-                        "BMI": bmi,
-                        "Smoker": smoker,
-                        "Stroke": stroke,
-                        "HeartDiseaseorAttack": heart_disease,
-                        "PhysActivity": phys_activity,
-                        "Fruits": fruits,
-                        "Veggies": veggies,
-                        "HvyAlcoholConsump": hvy_alcohol,
-                        "AnyHealthcare": any_healthcare,
-                        "NoDocbcCost": no_doc_cost,
-                        "GenHlth": gen_hlth,
-                        "MentHlth": ment_hlth,
-                        "PhysHlth": phys_hlth,
-                        "DiffWalk": diff_walk,
-                        "Sex": sex,
-                        "Age": age_cat,
-                        "Education": education,
-                        "Income": income,
-                    }
-                ]
-            )
-
-            # Feature Engineering
-            engineered_patient = preprocessing.engineer_cdc_features(raw_patient)
-            
-            # Preprocessing via fitted ColumnTransformer
-            transformed_patient = preprocessor.transform(engineered_patient)
-
-            # Inference
-            predicted_class = model.predict(transformed_patient)[0]
-            if hasattr(model, "predict_proba"):
-                prob = model.predict_proba(transformed_patient)[0, 1]
-            else:
-                prob = float(predicted_class)
+        if not scan_results:
+            st.error("No disease models loaded! Execute `python train_model.py` first.")
+        else:
+            critical_high = [r for r in scan_results if r["category"] == "High Risk" and "CRITICAL" in r["category_tier"]]
+            if critical_high:
+                st.markdown(
+                    f"""
+                    <div class="critical-alert">
+                        ⚠️ CRITICAL EMERGENCY TRIAGE ALERT: Patient is at HIGH RISK for {', '.join([c['disease_name'] for c in critical_high])}! 
+                        Immediate emergency clinical intervention required!
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
             st.markdown("---")
-            st.subheader("📋 Prediction Summary")
+            st.subheader("📋 Comprehensive 20-Disease Patient Scorecard")
             
-            m1, m2, m3 = st.columns(3)
-            with m1:
-                label = "DIABETIC / HIGH RISK" if predicted_class == 1 else "NON-DIABETIC / LOW RISK"
-                st.metric("Clinical Diagnosis", label)
-            with m2:
-                st.metric("Model Probability Score", f"{prob * 100:.1f}%")
-            with m3:
-                if prob < 0.30:
-                    st.markdown("<div class='risk-badge-low'>🟢 LOW RISK (< 30%)</div>", unsafe_allow_html=True)
-                elif prob < 0.60:
-                    st.markdown("<div class='risk-badge-moderate'>🟡 MODERATE RISK (30-60%)</div>", unsafe_allow_html=True)
-                else:
-                    st.markdown("<div class='risk-badge-high'>🔴 HIGH RISK (> 60%)</div>", unsafe_allow_html=True)
-
-            # Plotly Gauge Chart
-            gauge_fig = go.Figure(
-                go.Indicator(
-                    mode="gauge+number",
-                    value=prob * 100,
-                    title={"text": "Diabetes Probability (%)"},
-                    gauge={
-                        "axis": {"range": [0, 100]},
-                        "bar": {"color": "#38bdf8"},
-                        "steps": [
-                            {"range": [0, 30], "color": "#059669"},
-                            {"range": [30, 60], "color": "#d97706"},
-                            {"range": [60, 100], "color": "#dc2626"},
-                        ],
-                    },
-                )
-            )
-            st.plotly_chart(gauge_fig, use_container_width=True)
-
-            # SHAP Individual Explanation
-            st.subheader("🔬 SHAP Individual Feature Risk Contribution")
-            st.markdown("This chart breaks down which physiological and lifestyle factors increased (+) or decreased (-) the patient's risk score.")
+            avg_risk = np.mean([r["percentage"] for r in scan_results])
+            high_count = sum(1 for r in scan_results if r["category"] == "High Risk")
+            mod_count = sum(1 for r in scan_results if r["category"] == "Moderate Risk")
             
-            if explainer is not None:
-                try:
-                    shap_values = explainer(transformed_patient)
-                    fig_shap, ax_shap = plt.subplots(figsize=(10, 5))
-                    # Fallback bar or waterfall plot
-                    feature_names_list = feature_names if len(feature_names) == transformed_patient.shape[1] else [f"Feature_{i}" for i in range(transformed_patient.shape[1])]
-                    
-                    vals = shap_values.values[0] if hasattr(shap_values, "values") else shap_values[0]
-                    if len(vals.shape) > 1:
-                        vals = vals[:, 1]
-                    
-                    top_indices = np.argsort(np.abs(vals))[-10:]
-                    top_names = [feature_names_list[i] for i in top_indices]
-                    top_vals = vals[top_indices]
-                    
-                    colors = ["#dc2626" if v > 0 else "#059669" for v in top_vals]
-                    ax_shap.barh(top_names, top_vals, color=colors)
-                    ax_shap.set_xlabel("SHAP Impact on Risk Score")
-                    ax_shap.set_title("Top 10 Clinical Risk Contributors")
-                    st.pyplot(fig_shap)
-                except Exception as e:
-                    st.info(f"SHAP explanation rendering note: {e}")
-            else:
-                st.info("SHAP explainer object loading. Model metrics above remain fully active.")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Overall Health Risk Index", f"{avg_risk:.1f}%")
+            m2.metric("High Risk Conditions", high_count)
+            m3.metric("Moderate Risk Conditions", mod_count)
+            m4.metric("Total Scanned Diseases", len(scan_results))
 
-            st.warning("⚠️ Disclaimer: This tool is intended for medical research and educational decision support. Always verify predictions with a qualified healthcare professional.")
-
-
-# ---------------------------------------------------------------
-# PAGE 3: SHAP MODEL EXPLAINABILITY
-# ---------------------------------------------------------------
-elif page == "SHAP Model Explainability":
-    st.title("🔬 Global Model Interpretability & SHAP Analysis")
-    st.markdown("Understand how the winning machine learning model makes decisions across the full patient population.")
-
-    if os.path.exists("models/best_model.joblib"):
-        model, preprocessor, feature_names, explainer, metadata = load_trained_model_artifacts()
-        
-        st.subheader("Feature Importance Breakdown")
-        if hasattr(model, "feature_importances_"):
-            importances = model.feature_importances_
-            feat_imp_df = pd.DataFrame({"Feature": feature_names[:len(importances)], "Importance": importances})
-            feat_imp_df = feat_imp_df.sort_values(by="Importance", ascending=False).head(15)
-
-            fig_bar = px.bar(
-                feat_imp_df,
-                x="Importance",
-                y="Feature",
+            st.markdown("### 📊 20-Disease Risk Percentage Breakdown")
+            
+            df_chart = pd.DataFrame([
+                {"Disease": r["disease_name"], "Risk %": r["percentage"], "Category": r["category"], "Tier": r["category_tier"]}
+                for r in scan_results
+            ]).sort_values("Risk %", ascending=True)
+            
+            fig = px.bar(
+                df_chart,
+                x="Risk %",
+                y="Disease",
                 orientation="h",
-                color="Importance",
-                color_continuous_scale="Blues",
-                title="Top 15 Most Important Clinical Features (Global Weight)",
+                color="Category",
+                color_discrete_map={
+                    "Low Risk": "#059669",
+                    "Moderate Risk": "#d97706",
+                    "High Risk": "#dc2626",
+                },
+                text="Risk %",
+                range_x=[0, 100],
             )
-            fig_bar.update_layout(yaxis={"categoryorder": "total ascending"})
-            st.plotly_chart(fig_bar, use_container_width=True)
+            fig.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+            fig.update_layout(template="plotly_dark", height=650)
+            st.plotly_chart(fig, use_container_width=True)
 
-        st.markdown(
-            """
-            **Key Clinical Takeaways:**
-            1. **General Health Rating (`GenHlth`)** and **BMI** consistently serve as the top risk predictors.
-            2. **High Blood Pressure (`HighBP`)** and **High Cholesterol (`HighChol`)** show strong positive correlation with diabetes onset.
-            3. **Age Category** and **Comorbidity Index** amplify risk exponentially in older patient brackets.
-            """
+
+# ---------------------------------------------------------------
+# CATEGORIZED DISEASE DIAGNOSTIC PAGES
+# ---------------------------------------------------------------
+elif page in ["🤒 Everyday Fever, Flu & Infection Diagnostic", "🩸 Metabolic & Chronic Disease Diagnostic", "❤️ Cardiac, Organ & Cancer Diagnostic", "🧠 Critical Emergency & Shock Diagnostic"]:
+    st.title(f"🔍 {page}")
+    st.markdown("Select a specific disease condition below for detailed diagnosis and SHAP explanation.")
+
+    tier_map = {
+        "🤒 Everyday Fever, Flu & Infection Diagnostic": ["fever", "malaria", "typhoid", "dengue", "cold", "gastro"],
+        "🩸 Metabolic & Chronic Disease Diagnostic": ["diabetes", "hypertension", "anemia", "thyroid", "dementia"],
+        "❤️ Cardiac, Organ & Cancer Diagnostic": ["heart", "kidney", "liver", "pneumonia", "asthma", "cancer"],
+        "🧠 Critical Emergency & Shock Diagnostic": ["stroke", "sepsis", "hypertensive_crisis"],
+    }
+    
+    selected_keys = tier_map[page]
+    d_key = st.selectbox("Choose Disease Model to Evaluate", selected_keys, format_func=lambda k: f"{DISEASE_CONFIG[k]['icon']} {DISEASE_CONFIG[k]['name']}")
+    cfg = DISEASE_CONFIG[d_key]
+
+    model, preprocessor, feature_names, explainer, metadata = load_disease_artifacts(d_key)
+    if model is None:
+        st.error(f"Model artifact for {cfg['name']} missing! Please run `python train_model.py` first.")
+    else:
+        with st.form(f"{d_key}_form"):
+            st.subheader(f"1. Clinical Parameters for {cfg['name']}")
+            
+            if d_key == "fever":
+                temp = st.number_input("Body Temperature (°C)", 36.0, 41.5, 38.5, step=0.1)
+                chills = st.selectbox("Chills / Shivering?", [0, 1])
+                body_aches = st.selectbox("Severe Body Aches?", [0, 1])
+                fatigue = st.slider("Fatigue Level (1-3)", 1, 3, 2)
+                df_raw = pd.DataFrame([{"BodyTemp": temp, "Chills": chills, "BodyAches": body_aches, "FatigueLevel": fatigue, "Headache": 1, "Cough": 1, "DurationDays": 3}])
+            
+            elif d_key == "dengue":
+                fever = st.number_input("High Fever (°C)", 37.0, 41.5, 39.2, step=0.1)
+                retro = st.selectbox("Retro-Orbital Eye Pain?", [0, 1])
+                joint_pain = st.selectbox("Severe Joint/Bone Pain?", [0, 1])
+                platelets = st.number_input("Platelet Count (k/µL)", 10, 400, 75)
+                df_raw = pd.DataFrame([{"HighFever": fever, "RetroOrbitalPain": retro, "SevereJointPain": joint_pain, "PlateletCount": platelets, "PetechiaeRash": 1, "Hematocrit": 46.0}])
+
+            elif d_key == "sepsis":
+                hr = st.number_input("Heart Rate (bpm)", 40, 200, 110)
+                sys_bp = st.number_input("Systolic BP (mmHg)", 50, 220, 92)
+                temp = st.number_input("Body Temp (°C)", 34.0, 42.0, 38.9, step=0.1)
+                wbc = st.number_input("WBC Count (k/µL)", 1.0, 50.0, 17.0, step=0.5)
+                lactate = st.number_input("Lactate (mmol/L)", 0.5, 20.0, 4.5, step=0.2)
+                df_raw = pd.DataFrame([{"HeartRate": hr, "SysBP": sys_bp, "RespRate": 26, "BodyTemp": temp, "WBC_Count": wbc, "Lactate": lactate, "Platelets": 130, "Bilirubin": 1.2, "Creatinine": 2.0}])
+
+            else:
+                age = st.number_input("Age", 18, 90, 52)
+                bp = st.number_input("Blood Pressure (mmHg)", 80, 220, 135)
+                glucose = st.number_input("Glucose (mg/dL)", 60, 400, 130)
+                df_raw = pd.DataFrame([{"Age": age, "Sex": 1, "ChestPainType": 3, "RestingBP": bp, "Cholesterol": 220, "FastingBS": 0, "RestingECG": 1, "MaxHR": 145, "ExerciseAngina": 0, "Oldpeak": 1.0, "ST_Slope": 2, "ca": 0, "thal": 2}])
+
+            submitted = st.form_submit_button(f"Compute {cfg['name']} Prediction", use_container_width=True)
+
+        if submitted:
+            result = predict_disease_risk(d_key, df_raw)
+            if result:
+                st.markdown("---")
+                c_gauge, c_info = st.columns([1, 1])
+
+                with c_gauge:
+                    fig = go.Figure(
+                        go.Indicator(
+                            mode="gauge+number",
+                            value=result["percentage"],
+                            title={"text": f"{cfg['name']} Risk (%)"},
+                            gauge={
+                                "axis": {"range": [0, 100]},
+                                "bar": {"color": cfg["color"]},
+                                "steps": [
+                                    {"range": [0, 35], "color": "rgba(5, 150, 105, 0.2)"},
+                                    {"range": [35, 65], "color": "rgba(217, 119, 6, 0.2)"},
+                                    {"range": [65, 100], "color": "rgba(220, 38, 38, 0.2)"},
+                                ],
+                            },
+                        )
+                    )
+                    fig.update_layout(template="plotly_dark", height=280)
+                    st.plotly_chart(fig, use_container_width=True)
+
+                with c_info:
+                    st.markdown(f"### Assessment Outcome")
+                    st.markdown(f"<div class='{result[\"badge_cls\"]}'>{result['category']} ({result['percentage']:.1f}%)</div>", unsafe_allow_html=True)
+                    st.write("")
+                    st.info(f"Model deployed: **{result['metadata']['best_model_name']}** (Test ROC-AUC: {result['metadata']['test_roc_auc']:.3f})")
+
+                if explainer is not None and result["transformed_X"] is not None:
+                    st.markdown("---")
+                    st.subheader("🔬 SHAP Individual Feature Attribution")
+                    try:
+                        shap_vals = explainer(result["transformed_X"])
+                        fig_shap, ax = plt.subplots(figsize=(8, 4))
+                        shap.plots.waterfall(shap_vals[0], show=False)
+                        st.pyplot(fig_shap)
+                    except Exception as e:
+                        st.warning(f"SHAP chart display notice: {e}")
+
+
+# ---------------------------------------------------------------
+# PAGE: MODEL ANALYTICS & BENCHMARKS
+# ---------------------------------------------------------------
+elif page == "📊 Model Analytics & Benchmarks":
+    st.title("📊 20-Disease Model Benchmarks & Comparative Analytics")
+    summary_df = load_summary_analytics()
+
+    if summary_df is not None:
+        st.dataframe(summary_df, use_container_width=True)
+
+        fig = px.bar(
+            summary_df,
+            x="disease",
+            y=["test_accuracy", "test_f1", "test_roc_auc"],
+            barmode="group",
+            title="20-Disease Performance Metrics Comparison (Accuracy, F1-Score, ROC-AUC)",
         )
+        fig.update_layout(template="plotly_dark", height=500)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Run `python train_model.py` to generate multi-disease benchmark analytics.")
 
 
 # ---------------------------------------------------------------
-# PAGE 4: DATASET INSIGHTS
+# PAGE: ARCHITECTURE & DEFENSE
 # ---------------------------------------------------------------
-elif page == "Dataset Insights":
-    st.title("📊 Dataset Insights & Clinical Statistics")
-    st.markdown("Exploration of the **CDC Diabetes Health Indicators Dataset (70,692 Patient Records)**.")
-
-    cdc_df = load_real_cdc_data()
-    if cdc_df is not None:
-        st.subheader("1. Dataset Preview (First 10 Rows)")
-        st.dataframe(cdc_df.head(10))
-
-        st.subheader("2. Summary Statistics")
-        st.dataframe(cdc_df.describe().round(2))
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Outcome Class Distribution")
-            fig_class = px.pie(
-                cdc_df,
-                names=cdc_df["Outcome"].map({0: "Non-Diabetic", 1: "Diabetic"}),
-                title="Outcome Class Balance",
-                color_discrete_sequence=["#059669", "#dc2626"],
-            )
-            st.plotly_chart(fig_class, use_container_width=True)
-
-        with c2:
-            st.subheader("BMI Distribution by Diabetes Status")
-            fig_bmi = px.histogram(
-                cdc_df,
-                x="BMI",
-                color=cdc_df["Outcome"].map({0: "Non-Diabetic", 1: "Diabetic"}),
-                barmode="overlay",
-                title="BMI Distribution Overlay",
-                color_discrete_sequence=["#059669", "#dc2626"],
-            )
-            st.plotly_chart(fig_bmi, use_container_width=True)
-
-        st.subheader("3. Correlation Heatmap")
-        fig_corr, ax_corr = plt.subplots(figsize=(12, 8))
-        sns.heatmap(cdc_df.corr(), annot=False, cmap="coolwarm", ax=ax_corr)
-        st.pyplot(fig_corr)
-
-
-# ---------------------------------------------------------------
-# PAGE 5: MODEL PERFORMANCE
-# ---------------------------------------------------------------
-elif page == "Model Performance":
-    st.title("📈 8-Classifier Model Performance Benchmarks")
-    st.markdown("Head-to-head comparison of 8 machine learning algorithms evaluated on unseen test data under 5-Fold Stratified Cross Validation.")
-
-    comp_df = load_model_comparison_results()
-    if comp_df is not None:
-        st.subheader("1. Comprehensive Metrics Table")
-        st.dataframe(comp_df.style.highlight_max(axis=0, color="#1e3a8a"))
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("Test F1-Score Comparison")
-            fig_f1 = px.bar(
-                comp_df,
-                x="model_name",
-                y="test_f1",
-                color="test_f1",
-                color_continuous_scale="Viridis",
-                title="F1-Score by Model",
-            )
-            st.plotly_chart(fig_f1, use_container_width=True)
-
-        with c2:
-            st.subheader("Test ROC-AUC Comparison")
-            fig_auc = px.bar(
-                comp_df,
-                x="model_name",
-                y="test_roc_auc",
-                color="test_roc_auc",
-                color_continuous_scale="Plasma",
-                title="ROC-AUC Score by Model",
-            )
-            st.plotly_chart(fig_auc, use_container_width=True)
-
-
-# ---------------------------------------------------------------
-# PAGE 6: GRAPH DASHBOARD
-# ---------------------------------------------------------------
-elif page == "Graph Dashboard":
-    st.title("📉 Interactive Graph Dashboard")
-
-    cdc_df = load_real_cdc_data()
-    if cdc_df is not None:
-        feature_choice = st.selectbox(
-            "Select Clinical Feature to Analyze",
-            [c for c in cdc_df.columns if c != "Outcome"],
-        )
-
-        fig_box = px.box(
-            cdc_df,
-            x=cdc_df["Outcome"].map({0: "Non-Diabetic", 1: "Diabetic"}),
-            y=feature_choice,
-            color=cdc_df["Outcome"].map({0: "Non-Diabetic", 1: "Diabetic"}),
-            title=f"{feature_choice} Box Plot by Outcome",
-            color_discrete_sequence=["#059669", "#dc2626"],
-        )
-        st.plotly_chart(fig_box, use_container_width=True)
-
-
-# ---------------------------------------------------------------
-# PAGE 7: ABOUT
-# ---------------------------------------------------------------
-elif page == "About":
-    st.title("ℹ️ About This Project")
+elif page == "ℹ️ Architecture & Defense":
+    st.title("ℹ️ Architecture & Zero Data Leakage Defense")
     st.markdown(
         """
-        ### 🩺 AI Medical Diagnosis System (Diabetes Risk)
-        - **Data Source**: CDC Behavioral Risk Factor Surveillance System (BRFSS 2015 / UCI ML Repository ID 891).
-        - **Dataset Size**: **70,692 Real Patient Records**.
-        - **Pipeline Guarantee**: **0% Data Leakage**. All preprocessing transformations are strictly encapsulated inside Scikit-Learn `Pipeline` & `ColumnTransformer` pipelines.
-        - **Tech Stack**: Python, NumPy, Pandas, Scikit-Learn, XGBoost, SHAP, Streamlit, Plotly, Matplotlib, Seaborn.
-        - **Disclaimer**: Educational and decision-support prototype. Not a certified medical device.
+        ### 🛡️ Enterprise Guarantees
+        1. **Zero Data Leakage**: Feature imputations, scaling, and encodings are isolated inside Scikit-Learn ColumnTransformer pipelines fitted strictly on training folds.
+        2. **20-Disease Universal Diagnostic Suite**: Covers common everyday ailments (Fever, Flu, Dengue, Malaria, Typhoid, Cold, Gastroenteritis) alongside chronic, severe, and emergency critical conditions.
+        3. **Explainable AI**: SHAP explainers integrated for all 20 trained models.
         """
     )

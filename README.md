@@ -1,6 +1,34 @@
-# 🩺 Enterprise AI-Powered Diabetes Diagnosis & Decision Support System
+# 🩺 20-Disease AI Medical Diagnosis & Decision Support System
 
-An enterprise-grade, zero-leakage Machine Learning platform for clinical diabetes risk prediction, trained on **70,692 real CDC patient records** (Behavioral Risk Factor Surveillance System / UCI ML Repository ID 891).
+An enterprise-grade, zero-leakage Machine Learning platform for clinical multi-disease risk prediction, supporting **20 medical condition domains** spanning everyday common ailments to extreme critical emergencies:
+
+### 🟢 Everyday & Common Acute Ailments
+1. 🤒 **Fever & Acute Viral Flu**
+2. 🦟 **Malaria & Vector-Borne Fever**
+3. 🦠 **Typhoid Fever & Enteric Fever**
+4. 🩸 **Dengue Fever / Hemorrhagic Risk**
+5. 🤧 **Common Cold & Upper Respiratory Infection**
+6. 🫄 **Acute Gastroenteritis & Food Poisoning**
+
+### 🟡 Routine & Chronic Conditions
+7. 🩸 **Diabetes Mellitus** (CDC BRFSS / Glucose & Metabolic Indicators)
+8. 🩸 **Hypertension & Vascular Strain**
+9. 🩸 **Anemia & Iron Deficiency**
+10. 🦋 **Thyroid Disorder (Hypo/Hyperthyroidism)**
+11. ⚡ **Alzheimer's & Dementia Cognitive Impairment**
+
+### 🟠 Severe Organic & Respiratory Diseases
+12. ❤️ **Coronary Heart Disease** (UCI Cardiac Biomarkers)
+13. 🧪 **Chronic Kidney Disease (CKD)** (Renal Function Panel)
+14. 🫀 **Hepatic / Liver Disease** (Indian Liver Patient Dataset)
+15. 🫁 **Pneumonia & Respiratory Strain**
+16. 🫁 **Asthma & Bronchial Hyperreactivity**
+17. 🎗️ **Oncology / Tumor Risk Assessment** (Tissue Biomarkers)
+
+### 🔴 Critical Emergencies
+18. 🧠 **Stroke & Cerebrovascular Attack** (Acute Neurological Emergency)
+19. 🦠 **Sepsis & Critical Care Shock** (SIRS Criteria & Septic Shock)
+20. 💥 **Hypertensive Crisis Risk** (Extreme BP Elevation >180/120)
 
 Built with classic Python data science tools: **NumPy, Pandas, Scikit-Learn, XGBoost, SHAP, Streamlit, Plotly, Seaborn, and Matplotlib**.
 
@@ -12,28 +40,33 @@ Built with classic Python data science tools: **NumPy, Pandas, Scikit-Learn, XGB
 Medical-Diagnosis-System/
 │
 ├── data/
-│   ├── cdc_diabetes_real_large.csv     # 70,692 real patient records from CDC BRFSS / UCI ID 891
-│   └── pima_diabetes_real.csv          # 768 real patient records (NIDDK benchmark dataset)
+│   ├── cdc_diabetes_real_large.csv     # 229,474 real patient records from CDC BRFSS
+│   ├── heart_disease_real.csv          # Cardiac clinical dataset
+│   ├── kidney_disease_real.csv         # Chronic Kidney Disease clinical dataset
+│   ├── liver_disease_real.csv          # Indian Liver Patient clinical dataset
+│   ├── stroke_prediction_real.csv      # Healthcare Stroke Prediction dataset
+│   ├── fever_viral_real.csv            # Fever & Flu clinical dataset
+│   ├── malaria_fever_real.csv          # Malaria clinical dataset
+│   ├── dengue_fever_real.csv           # Dengue clinical dataset
+│   └── ... (20 total disease clinical datasets)
 │
 ├── models/
-│   ├── best_model.joblib               # Winning classifier (joblib)
-│   ├── best_model.pkl                  # Winning classifier (pickle)
-│   ├── preprocessor.joblib             # Fitted Scikit-Learn ColumnTransformer pipeline
-│   ├── feature_columns.joblib          # Output feature column names
-│   ├── shap_explainer.joblib           # Fitted SHAP TreeExplainer / KernelExplainer
-│   ├── model_metadata.joblib           # Best model metrics and dataset metadata
-│   └── model_comparison_results.csv    # 8-model benchmark comparison table
+│   ├── diabetes/                       # Diabetes ML model & SHAP artifacts
+│   ├── heart/                          # Heart Disease ML model & SHAP artifacts
+│   ├── kidney/                         # Kidney Disease ML model & SHAP artifacts
+│   ├── ...                             # (20 disease model artifact directories)
+│   └── all_diseases_summary.csv        # Benchmark comparison table for all 20 diseases
 │
 ├── src/
-│   ├── fetch_real_datasets.py          # Fetches & cleans real CDC dataset via ucimlrepo / UCI API
+│   ├── fetch_real_datasets.py          # Fetches & prepares datasets for all 20 diseases
 │   └── build_eda_notebook.py           # Programmatically generates EDA notebook
 │
 ├── tests/
-│   └── test_pipeline.py                # Automated Pytest suite (Zero Leakage, Pipeline, Inference)
+│   └── test_pipeline.py                # Pytest suite verifying all 20 disease models
 │
-├── app.py                              # Modern 7-page Streamlit Application with SHAP
-├── preprocessing.py                    # Zero-Leakage Pipeline & Feature Engineering
-├── train_model.py                      # 8-model suite training, hyperparameter tuning & SHAP
+├── app.py                              # Streamlit app with Universal 20-Disease Scanner
+├── preprocessing.py                    # Multi-Disease Zero-Leakage Pipeline & Feature Engineering
+├── train_model.py                      # Multi-disease model training & SHAP explainer generator
 ├── requirements.txt
 └── README.md
 ```

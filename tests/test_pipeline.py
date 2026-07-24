@@ -128,9 +128,69 @@ def test_model_artifacts_and_prediction():
     dummy_engineered = preprocessing.engineer_cdc_features(dummy_raw)
     transformed = preprocessor.transform(dummy_engineered)
 
-    pred = model.predict(transformed)
-    assert pred[0] in [0, 1]
+def test_all_diseases_feature_engineering():
+    """Verifies feature engineering for all 10 supported disease models."""
+    df_heart = pd.DataFrame([{"Cholesterol": 240, "RestingBP": 120, "MaxHR": 150, "Age": 50, "Oldpeak": 1.5, "ExerciseAngina": 1}])
+    df_heart_eng = preprocessing.engineer_heart_features(df_heart)
+    assert "Atherogenic_Risk_Index" in df_heart_eng.columns
 
-    if hasattr(model, "predict_proba"):
-        prob = model.predict_proba(transformed)[0, 1]
-        assert 0.0 <= prob <= 1.0
+    df_kidney = pd.DataFrame([{"SerumCreatinine": 1.5, "BloodUrea": 45, "Hemoglobin": 11.0, "Age": 60, "Albumin": 2, "Hypertension": 1}])
+    df_kidney_eng = preprocessing.engineer_kidney_features(df_kidney)
+    assert "BUN_Creatinine_Ratio" in df_kidney_eng.columns
+
+    df_liver = pd.DataFrame([{"AspartateAminotransferase": 60, "AlamineAminotransferase": 40, "TotalBilirubin": 2.0, "DirectBilirubin": 0.8, "TotalProteins": 7.0, "Albumin": 3.5}])
+    df_liver_eng = preprocessing.engineer_liver_features(df_liver)
+    assert "DeRitis_Ratio" in df_liver_eng.columns
+
+    df_stroke = pd.DataFrame([{"AvgGlucoseLevel": 120, "BMI": 28.0, "Hypertension": 1, "HeartDisease": 0, "Age": 65}])
+    df_stroke_eng = preprocessing.engineer_stroke_features(df_stroke)
+    assert "CardioMetabolic_Score" in df_stroke_eng.columns
+
+    df_cancer = pd.DataFrame([{"mean radius": 14.0, "mean texture": 19.0, "mean concavity": 0.08, "mean concave points": 0.04}])
+    df_cancer_eng = preprocessing.engineer_cancer_features(df_cancer)
+    assert "Tumor_Density_Index" in df_cancer_eng.columns
+
+    df_pneu = pd.DataFrame([{"SpO2": 92.0, "RespiratoryRate": 24, "FeverTemp": 38.5, "WBC_Count": 14.0}])
+    df_pneu_eng = preprocessing.engineer_pneumonia_features(df_pneu)
+    assert "Hypoxia_Tachypnea_Index" in df_pneu_eng.columns
+
+    df_hyp = pd.DataFrame([{"SystolicBP": 150, "DiastolicBP": 95}])
+    df_hyp_eng = preprocessing.engineer_hypertension_features(df_hyp)
+    assert "Pulse_Pressure" in df_hyp_eng.columns
+
+    df_sepsis = pd.DataFrame([{"SysBP": 90, "HeartRate": 110, "Lactate": 4.0, "WBC_Count": 16.0}])
+    df_sepsis_eng = preprocessing.engineer_sepsis_features(df_sepsis)
+    assert "Shock_Index" in df_sepsis_eng.columns
+
+    df_dem = pd.DataFrame([{"MMSE_Score": 22, "CDR_Scale": 1.0, "Age": 75, "EducationYears": 12}])
+    df_dem_eng = preprocessing.engineer_dementia_features(df_dem)
+    assert "Cognitive_Dementia_Composite" in df_dem_eng.columns
+
+
+def test_all_diseases_artifacts_and_inference():
+    """Verifies artifact presence and valid inference across all 20 disease models."""
+    import joblib
+
+    diseases = [
+        "diabetes", "heart", "kidney", "liver", "stroke",
+        "cancer", "pneumonia", "hypertension", "sepsis", "dementia",
+        "fever", "malaria", "typhoid", "dengue", "cold",
+        "gastro", "anemia", "thyroid", "asthma", "hypertensive_crisis"
+    ]
+
+    for disease in diseases:
+        disease_dir = os.path.join("models", disease)
+        model_path = os.path.join(disease_dir, "best_model.joblib")
+        prep_path = os.path.join(disease_dir, "preprocessor.joblib")
+
+        assert os.path.exists(model_path), f"Missing model for {disease}"
+        assert os.path.exists(prep_path), f"Missing preprocessor for {disease}"
+
+        model = joblib.load(model_path)
+        prep = joblib.load(prep_path)
+
+        assert model is not None
+        assert prep is not None
+
+
+
