@@ -3,11 +3,11 @@ app.py
 --------------------------------------------------------------------
 Streamlit Application for the 20-Disease AI Medical Diagnosis System.
 
-Includes:
-  1. 🤖 Ada-Style AI Symptom Checker & Automatic Triage Assistant
-  2. 🏥 Universal 20-Disease Patient Health Scanner
-  3. Categorized Disease Diagnostic Pages (Everyday, Chronic, Severe, Emergency)
-  4. Model Analytics & Benchmarks
+Features an authentic Ada Health Interactive Symptom Assessment Engine:
+  Step 1: Patient Profile & Risk Factors
+  Step 2: Chief Complaint & Symptom Intake
+  Step 3: Targeted Follow-up Medical Questions
+  Step 4: Ada Differential Assessment & Triage Report (with SHAP)
 """
 
 import os
@@ -27,66 +27,79 @@ import preprocessing
 # PAGE CONFIGURATION
 # ---------------------------------------------------------------
 st.set_page_config(
-    page_title="AI Medical System | 20-Disease Diagnostic & Ada Triage",
+    page_title="Ada AI Health Assessment & 20-Disease Diagnostic Suite",
     page_icon="🩺",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ---------------------------------------------------------------
-# CUSTOM STYLING (Ada Health Tech Theme)
+# CUSTOM STYLING (Ada Health UI Theme)
 # ---------------------------------------------------------------
 st.markdown(
     """
     <style>
     .main {
-        background-color: #0e1117;
+        background-color: #0b0f19;
     }
     
-    .header-card {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        padding: 24px;
-        border-radius: 14px;
-        border: 1px solid #334155;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    .ada-header-card {
+        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e293b 100%);
+        padding: 26px;
+        border-radius: 16px;
+        border: 1px solid #4f46e5;
+        box-shadow: 0 12px 30px -5px rgba(79, 70, 229, 0.3);
         margin-bottom: 25px;
     }
     
-    .header-title {
-        color: #38bdf8;
-        font-size: 2.2rem;
-        font-weight: 700;
-        margin-bottom: 8px;
+    .ada-header-title {
+        color: #a5b4fc;
+        font-size: 2.3rem;
+        font-weight: 800;
+        margin-bottom: 6px;
     }
     
-    .header-subtitle {
-        color: #94a3b8;
-        font-size: 1.05rem;
+    .ada-header-subtitle {
+        color: #e0e7ff;
+        font-size: 1.1rem;
     }
 
-    .ada-card {
-        background: linear-gradient(135deg, #1e293b 0%, #1e1b4b 100%);
-        padding: 22px;
+    .ada-step-box {
+        background-color: #1e293b;
+        border: 1px solid #334155;
         border-radius: 14px;
-        border: 1px solid #4338ca;
+        padding: 22px;
         margin-bottom: 20px;
     }
 
-    .ada-title {
-        color: #818cf8;
-        font-size: 1.6rem;
+    .ada-badge-emergency {
+        background-color: #dc2626;
+        color: white;
+        padding: 8px 18px;
+        border-radius: 30px;
         font-weight: 700;
+        font-size: 1.1rem;
+        display: inline-block;
     }
 
-    .ada-subtitle {
-        color: #c7d2fe;
-        font-size: 1.0rem;
+    .ada-badge-doctor {
+        background-color: #d97706;
+        color: white;
+        padding: 8px 18px;
+        border-radius: 30px;
+        font-weight: 700;
+        font-size: 1.1rem;
+        display: inline-block;
     }
-    
-    div[data-testid="stMetricValue"] {
-        font-size: 1.8rem !important;
-        font-weight: 700 !important;
-        color: #38bdf8 !important;
+
+    .ada-badge-selfcare {
+        background-color: #059669;
+        color: white;
+        padding: 8px 18px;
+        border-radius: 30px;
+        font-weight: 700;
+        font-size: 1.1rem;
+        display: inline-block;
     }
     
     .risk-badge-low {
@@ -119,8 +132,8 @@ st.markdown(
     .critical-alert {
         background-color: #7f1d1d;
         border-left: 6px solid #ef4444;
-        padding: 16px;
-        border-radius: 8px;
+        padding: 18px;
+        border-radius: 10px;
         color: white;
         font-weight: 600;
         margin-bottom: 20px;
@@ -250,7 +263,7 @@ st.sidebar.title("🩺 AI Medical Diagnostic Suite")
 page = st.sidebar.radio(
     "Navigation Menu",
     [
-        "🤖 Ada-Style AI Symptom Assistant",
+        "🤖 Ada Interactive AI Health Assessment",
         "Home Overview",
         "🏥 Universal 20-Disease Health Scanner",
         "🤒 Everyday Fever, Flu & Infection Diagnostic",
@@ -267,265 +280,253 @@ st.sidebar.info("🛡️ **Zero Data Leakage Pipeline**: Imputation, scaling & e
 
 
 # ---------------------------------------------------------------
-# PAGE: ADA-STYLE AI SYMPTOM ASSISTANT & AUTOMATIC TRIAGE
+# PAGE: ADA INTERACTIVE AI HEALTH ASSESSMENT (ADA HEALTH APP FLOW)
 # ---------------------------------------------------------------
-if page == "🤖 Ada-Style AI Symptom Assistant":
+if page == "🤖 Ada Interactive AI Health Assessment":
     st.markdown(
         """
-        <div class="ada-card">
-            <div class="ada-title">🤖 Ada-Style AI Symptom Assistant & Triage</div>
-            <div class="ada-subtitle">
-                Don't know what's happening to your body? Simply check your symptoms or describe how you feel in your own words. 
-                Our AI will automatically evaluate all <b>20 disease possibilities</b> and tell you what disease it is!
+        <div class="ada-header-card">
+            <div class="ada-header-title">🤖 Ada Interactive AI Health Assessment</div>
+            <div class="ada-header-subtitle">
+                Complete a guided 4-step medical symptom consultation. Ada AI automatically checks <b>20 disease possibilities</b> 
+                and provides a clinical triage report.
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    col_input1, col_input2 = st.columns([1, 1])
+    if "ada_step" not in st.session_state:
+        st.session_state.ada_step = 1
 
-    with col_input1:
-        st.subheader("1. Select Your Symptoms")
-        symptom_checklist = st.multiselect(
-            "What symptoms are you experiencing right now?",
+    # STEP PROGRESS INDICATOR
+    p1, p2, p3, p4 = st.columns(4)
+    p1.markdown("🔴 **1. Profile & Risks**" if st.session_state.ada_step == 1 else "⚪ 1. Profile")
+    p2.markdown("🔴 **2. Chief Symptom**" if st.session_state.ada_step == 2 else "⚪ 2. Chief Symptom")
+    p3.markdown("🔴 **3. Follow-up Questions**" if st.session_state.ada_step == 3 else "⚪ 3. Questions")
+    p4.markdown("🔴 **4. Ada Health Report**" if st.session_state.ada_step == 4 else "⚪ 4. Report")
+    st.markdown("---")
+
+    # STEP 1: PATIENT PROFILE & RISK FACTORS
+    if st.session_state.ada_step == 1:
+        st.markdown("<div class='ada-step-box'>", unsafe_allow_html=True)
+        st.subheader("Step 1 of 4: Patient Profile & Health Background")
+        
+        target_person = st.radio("Who is this assessment for?", ["Myself", "Someone Else"], horizontal=True)
+        
+        c_p1, c_p2 = st.columns(2)
+        with c_p1:
+            age = st.number_input("Age (Years)", 1, 100, 34)
+            sex = st.selectbox("Biological Sex", ["Female", "Male"])
+        with c_p2:
+            rf_hbp = st.checkbox("High Blood Pressure")
+            rf_hchol = st.checkbox("High Cholesterol")
+            rf_diab = st.checkbox("Diabetes Mellitus")
+            rf_smoker = st.checkbox("Active Smoker")
+            rf_heart = st.checkbox("Heart Disease History")
+
+        if st.button("Continue to Symptoms ➔", type="primary", use_container_width=True):
+            st.session_state.ada_age = age
+            st.session_state.ada_sex = sex
+            st.session_state.ada_rf_hbp = rf_hbp
+            st.session_state.ada_rf_hchol = rf_hchol
+            st.session_state.ada_rf_diab = rf_diab
+            st.session_state.ada_rf_smoker = rf_smoker
+            st.session_state.ada_rf_heart = rf_heart
+            st.session_state.ada_step = 2
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # STEP 2: CHIEF COMPLAINT / MAIN SYMPTOM
+    elif st.session_state.ada_step == 2:
+        st.markdown("<div class='ada-step-box'>", unsafe_allow_html=True)
+        st.subheader("Step 2 of 4: What is your primary symptom?")
+        st.write("Select what is bothering you the most today:")
+
+        chief_symptom = st.selectbox(
+            "Primary Complaint",
             [
-                "🤒 High Fever / Temperature (>38°C)",
-                "🥶 Chills / Shivering Paroxysms",
-                "🤕 Severe Headache",
-                "💪 Body Aches & Muscle Pain",
-                "🦴 Extreme Joint & Bone Pain",
-                "👁️ Pain Behind Eyes (Retro-Orbital)",
-                "🗣️ Sore Throat & Nasal Congestion",
-                "😮‍💨 Cough, Wheezing & Shortness of Breath",
-                "🤢 Nausea & Vomiting",
-                "🫄 Diarrhea & Severe Abdominal Cramps",
-                "🫀 Chest Pain / Heart Palpitations",
-                "🩸 Easy Bruising / Low Platelets / Bleeding",
-                "🥱 Extreme Fatigue / Weakness",
-                "😵 Dizziness / Memory Loss / Confusion",
-                "💧 Excessive Thirst & Frequent Urination",
-            ],
+                "🤒 Fever / High Body Temperature",
+                "🥶 Cold Chills & Shivering Paroxysms",
+                "🤕 Headaches / Dizziness / Memory Issues",
+                "🗣️ Sore Throat, Nasal Congestion & Cold",
+                "😮‍💨 Cough, Shortness of Breath & Wheezing",
+                "🤢 Nausea, Vomiting, Diarrhea & Stomach Cramps",
+                "🫀 Chest Pain / Pressure / Palpitations",
+                "🦴 Severe Joint Pain / Body Aches",
+                "🩸 Unexplained Fatigue, Pallor or Low Platelet Symptoms",
+            ]
         )
 
-        free_text = st.text_area(
-            "Or describe your symptoms in your own words (Optional):",
-            placeholder="e.g. I have had a high fever for 3 days with shivering paroxysms, joint pain, nausea, and low energy...",
-            height=100,
+        symptom_duration = st.select_slider(
+            "How long have you had this symptom?",
+            options=["Less than 24 hours", "1 - 3 Days", "4 - 7 Days", "More than 1 week"]
         )
 
-    with col_input2:
-        st.subheader("2. Basic Patient Details")
-        user_age = st.number_input("Age (Years)", 1, 100, 32)
-        user_gender = st.selectbox("Gender", ["Female", "Male"])
-        known_conditions = st.multiselect(
-            "Pre-existing Known Health Conditions (If any)",
-            ["High Blood Pressure", "High Cholesterol", "Diabetes", "Smoker", "Heart Disease History"],
-        )
+        symptom_notes = st.text_input("Describe any additional symptoms in your own words (Optional):", "")
 
-    triage_btn = st.button("🔍 Assess My Symptoms & Identify Disease", use_container_width=True, type="primary")
+        c_b1, c_b2 = st.columns([1, 1])
+        with c_b1:
+            if st.button("⬅️ Back"):
+                st.session_state.ada_step = 1
+                st.rerun()
+        with c_b2:
+            if st.button("Continue to Assessment Questions ➔", type="primary", use_container_width=True):
+                st.session_state.ada_chief = chief_symptom
+                st.session_state.ada_duration = symptom_duration
+                st.session_state.ada_notes = symptom_notes
+                st.session_state.ada_step = 3
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    if triage_btn or (symptom_checklist or free_text.strip()):
-        text_lower = free_text.lower()
-        sel_text = " ".join(symptom_checklist).lower()
-        full_text = text_lower + " " + sel_text
+    # STEP 3: TARGETED MEDICAL FOLLOW-UP QUESTIONS
+    elif st.session_state.ada_step == 3:
+        st.markdown("<div class='ada-step-box'>", unsafe_allow_html=True)
+        st.subheader("Step 3 of 4: Targeted Clinical Follow-up Questions")
+        st.write("Ada AI is refining the differential diagnosis based on your answers:")
 
-        has_fever = "fever" in full_text or "temperature" in full_text
-        has_chills = "chills" in full_text or "shivering" in full_text
-        has_body_aches = "body aches" in full_text or "muscle pain" in full_text
-        has_joint_pain = "joint" in full_text or "bone pain" in full_text
-        has_eye_pain = "behind eyes" in full_text or "retro-orbital" in full_text
-        has_sore_throat = "sore throat" in full_text or "nasal" in full_text or "cold" in full_text
-        has_cough_breath = "cough" in full_text or "breath" in full_text or "wheezing" in full_text
-        has_nausea_vomit = "nausea" in full_text or "vomiting" in full_text or "diarrhea" in full_text or "abdominal" in full_text
-        has_chest_pain = "chest pain" in full_text or "palpitations" in full_text
-        has_bleeding = "bruising" in full_text or "bleeding" in full_text or "platelet" in full_text
-        has_fatigue = "fatigue" in full_text or "weakness" in full_text
-        has_confusion = "confusion" in full_text or "memory" in full_text or "dizziness" in full_text
-        has_thirst = "thirst" in full_text or "urination" in full_text
+        q1 = st.radio("1. Are you experiencing sudden high fever with intense shivering or cold chills?", ["Yes", "No", "Unsure"], horizontal=True)
+        q2 = st.radio("2. Do you have severe pain behind your eyes or intense bone and muscle aching?", ["Yes", "No", "Unsure"], horizontal=True)
+        q3 = st.radio("3. Are you suffering from frequent nausea, vomiting, or diarrhea episodes?", ["Yes", "No", "Unsure"], horizontal=True)
+        q4 = st.radio("4. Have you noticed shortness of breath, chest tightness, or wheezing?", ["Yes", "No", "Unsure"], horizontal=True)
+        q5 = st.radio("5. Have you experienced any severe dizziness, confusion, or memory loss?", ["Yes", "No", "Unsure"], horizontal=True)
 
-        sex_val = 1 if user_gender == "Male" else 0
-        has_hbp = "High Blood Pressure" in known_conditions
-        has_hchol = "High Cholesterol" in known_conditions
-        has_diab = "Diabetes" in known_conditions
-        is_smoker = 1 if "Smoker" in known_conditions else 0
+        c_b1, c_b2 = st.columns([1, 1])
+        with c_b1:
+            if st.button("⬅️ Back"):
+                st.session_state.ada_step = 2
+                st.rerun()
+        with c_b2:
+            if st.button("Generate Ada Clinical Assessment Report 🚀", type="primary", use_container_width=True):
+                st.session_state.ada_q1 = q1
+                st.session_state.ada_q2 = q2
+                st.session_state.ada_q3 = q3
+                st.session_state.ada_q4 = q4
+                st.session_state.ada_q5 = q5
+                st.session_state.ada_step = 4
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        cdc_age_bin = int(np.clip(1 + (user_age - 18) // 5, 1, 13))
+    # STEP 4: ADA DIFFERENTIAL ASSESSMENT REPORT
+    elif st.session_state.ada_step == 4:
+        st.subheader("Step 4 of 4: Ada AI Clinical Health Assessment Report")
+
+        age = st.session_state.get("ada_age", 34)
+        sex = st.session_state.get("ada_sex", "Male")
+        sex_val = 1 if sex == "Male" else 0
+        
+        rf_hbp = st.session_state.get("ada_rf_hbp", False)
+        rf_hchol = st.session_state.get("ada_rf_hchol", False)
+        rf_diab = st.session_state.get("ada_rf_diab", False)
+        rf_smoker = st.session_state.get("ada_rf_smoker", False)
+        rf_heart = st.session_state.get("ada_rf_heart", False)
+
+        chief = st.session_state.get("ada_chief", "")
+        notes = st.session_state.get("ada_notes", "").lower()
+        full_text = chief.lower() + " " + notes
+
+        q1 = st.session_state.get("ada_q1", "No") == "Yes"
+        q2 = st.session_state.get("ada_q2", "No") == "Yes"
+        q3 = st.session_state.get("ada_q3", "No") == "Yes"
+        q4 = st.session_state.get("ada_q4", "No") == "Yes"
+        q5 = st.session_state.get("ada_q5", "No") == "Yes"
+
+        has_fever = "fever" in full_text or q1
+        has_chills = "chills" in full_text or q1
+        has_joint_eye = "joint" in full_text or q2
+        has_gastro = "nausea" in full_text or "vomit" in full_text or q3
+        has_resp = "breath" in full_text or "cough" in full_text or q4
+        has_neuro = "dizziness" in full_text or "memory" in full_text or q5
+        has_chest = "chest pain" in full_text or rf_heart
+
+        cdc_age_bin = int(np.clip(1 + (age - 18) // 5, 1, 13))
 
         inputs_ada = {
-            "fever": pd.DataFrame([{
-                "BodyTemp": 39.1 if has_fever else 37.0, "Chills": 1 if has_chills else 0,
-                "BodyAches": 1 if has_body_aches else 0, "FatigueLevel": 3 if has_fatigue else 1,
-                "Headache": 1 if "headache" in full_text else 0, "Cough": 1 if has_sore_throat else 0, "DurationDays": 3
-            }]),
-            "malaria": pd.DataFrame([{
-                "TempSpike": 39.5 if has_fever else 37.0, "ShiveringParoxysm": 1 if has_chills else 0,
-                "SweatingStage": 1 if has_chills else 0, "PlateletCount": 75 if has_chills else 220,
-                "Jaundice": 1 if "yellow" in full_text else 0, "Splenomegaly": 0
-            }]),
-            "typhoid": pd.DataFrame([{
-                "StepladderFever": 1 if has_fever else 0, "FeverDuration": 6,
-                "AbdominalPain": 1 if has_nausea_vomit else 0, "RelativeBradycardia": 1 if has_fever else 0,
-                "RoseSpots": 0, "WBC_Count": 11.5
-            }]),
-            "dengue": pd.DataFrame([{
-                "HighFever": 39.6 if has_fever else 37.0, "RetroOrbitalPain": 1 if has_eye_pain else 0,
-                "SevereJointPain": 1 if has_joint_pain else 0, "PlateletCount": 65 if (has_bleeding or has_joint_pain) else 180,
-                "PetechiaeRash": 1 if has_bleeding else 0, "Hematocrit": 46.0
-            }]),
-            "cold": pd.DataFrame([{
-                "Rhinorrhea": 1 if has_sore_throat else 0, "SoreThroat": 1 if has_sore_throat else 0,
-                "Sneezing": 1 if has_sore_throat else 0, "NasalCongestion": 1 if has_sore_throat else 0,
-                "MildFever": 37.8 if has_fever else 36.8
-            }]),
-            "gastro": pd.DataFrame([{
-                "Nausea": 1 if has_nausea_vomit else 0, "VomitingEpisodes": 3 if has_nausea_vomit else 0,
-                "DiarrheaEpisodes": 4 if has_nausea_vomit else 0, "AbdominalCramps": 1 if has_nausea_vomit else 0,
-                "DehydrationScore": 2 if has_nausea_vomit else 0
-            }]),
-            "anemia": pd.DataFrame([{
-                "Hemoglobin": 9.2 if has_fatigue else 13.5, "RBC_Count": 3.4 if has_fatigue else 4.5,
-                "Ferritin": 15 if has_fatigue else 80, "Fatigue": 3 if has_fatigue else 1, "Pallor": 1 if has_fatigue else 0
-            }]),
-            "thyroid": pd.DataFrame([{
-                "TSH": 6.8 if has_fatigue else 2.1, "Free_T3": 2.1, "Free_T4": 0.8,
-                "WeightChange": 1 if has_fatigue else 0, "RestingHR": 72
-            }]),
-            "diabetes": pd.DataFrame([{
-                "HighBP": 1 if has_hbp else 0, "HighChol": 1 if has_hchol else 0,
-                "CholCheck": 1, "BMI": 29.0, "Smoker": is_smoker, "Stroke": 0, "HeartDiseaseorAttack": 0,
-                "PhysActivity": 1, "Fruits": 1, "Veggies": 1, "HvyAlcoholConsump": 0, "AnyHealthcare": 1,
-                "NoDocbcCost": 0, "GenHlth": 3, "MentHlth": 2, "PhysHlth": 2, "DiffWalk": 0,
-                "Sex": sex_val, "Age": cdc_age_bin, "Education": 5, "Income": 7
-            }]),
-            "hypertension": pd.DataFrame([{
-                "Age": user_age, "SystolicBP": 160 if has_hbp else 125, "DiastolicBP": 95 if has_hbp else 82,
-                "BMI": 28.5, "SodiumIntake": 2, "PhysicalInactivity": 0, "FamilyHistory": 1, "AlcoholUse": 0, "StressLevel": 3
-            }]),
-            "dementia": pd.DataFrame([{
-                "Age": user_age, "MMSE_Score": 18 if has_confusion else 29,
-                "CDR_Scale": 1.0 if has_confusion else 0.0, "FunctionalAssessment": 6 if has_confusion else 10,
-                "MemoryLossScore": 1 if has_confusion else 0, "BehavioralProblems": 0, "EducationYears": 14, "APOE4_Allele": 0
-            }]),
-            "heart": pd.DataFrame([{
-                "Age": user_age, "Sex": sex_val, "ChestPainType": 3 if has_chest_pain else 0,
-                "RestingBP": 145 if has_hbp else 120, "Cholesterol": 240 if has_hchol else 190,
-                "FastingBS": 1 if has_diab else 0, "RestingECG": 1 if has_chest_pain else 0,
-                "MaxHR": 145, "ExerciseAngina": 1 if has_chest_pain else 0, "Oldpeak": 1.5 if has_chest_pain else 0.0,
-                "ST_Slope": 2, "ca": 0, "thal": 2
-            }]),
-            "kidney": pd.DataFrame([{
-                "Age": user_age, "BloodPressure": 140 if has_hbp else 120, "SpecificGravity": 1.015,
-                "Albumin": 2 if has_hbp else 0, "Sugar": 1 if has_diab else 0, "BloodGlucoseRandom": 180 if has_diab else 100,
-                "BloodUrea": 55 if has_hbp else 30, "SerumCreatinine": 2.2 if has_hbp else 0.9,
-                "Hemoglobin": 10.5 if has_fatigue else 13.0, "Hypertension": 1 if has_hbp else 0, "DiabetesMellitus": 1 if has_diab else 0
-            }]),
-            "liver": pd.DataFrame([{
-                "Age": user_age, "Gender": sex_val, "TotalBilirubin": 2.8 if "yellow" in full_text else 0.9,
-                "DirectBilirubin": 1.0, "AlkalinePhosphatase": 230, "AlamineAminotransferase": 65,
-                "AspartateAminotransferase": 75, "TotalProteins": 6.5, "Albumin": 3.2, "AlbuminAndGlobulinRatio": 0.9
-            }]),
-            "pneumonia": pd.DataFrame([{
-                "Age": user_age, "SpO2": 91.0 if has_cough_breath else 98.0,
-                "RespiratoryRate": 26 if has_cough_breath else 18, "FeverTemp": 38.8 if has_fever else 37.0,
-                "WBC_Count": 15.5 if has_fever else 7.5, "DyspneaSeverity": 1 if has_cough_breath else 0,
-                "CoughType": 1 if has_cough_breath else 0, "ChestPain": 1 if has_chest_pain else 0, "Smoker": is_smoker
-            }]),
-            "asthma": pd.DataFrame([{
-                "Wheezing": 1 if has_cough_breath else 0, "PeakExpiratoryFlow": 65 if has_cough_breath else 95,
-                "NocturnalCough": 1 if has_cough_breath else 0, "AllergenTrigger": 1, "ExertionalDyspnea": 1 if has_cough_breath else 0
-            }]),
-            "cancer": pd.DataFrame([{
-                "mean radius": 16.2 if "lump" in full_text else 14.0, "mean texture": 21.0,
-                "mean perimeter": 105.0, "mean area": 800.0, "mean smoothness": 0.11, "mean compactness": 0.14,
-                "mean concavity": 0.12, "mean concave points": 0.08, "mean symmetry": 0.20, "mean fractal dimension": 0.065
-            }]),
-            "stroke": pd.DataFrame([{
-                "Gender": sex_val, "Age": user_age, "Hypertension": 1 if has_hbp else 0,
-                "HeartDisease": 1 if "Heart Disease History" in known_conditions else 0, "EverMarried": 1,
-                "AvgGlucoseLevel": 200 if has_diab else 100, "BMI": 29.0, "SmokingStatus": is_smoker
-            }]),
-            "sepsis": pd.DataFrame([{
-                "HeartRate": 115 if (has_fever and has_chills) else 75, "SysBP": 88 if (has_fever and has_chills) else 120,
-                "RespRate": 26 if (has_fever and has_chills) else 18, "BodyTemp": 39.2 if has_fever else 37.0,
-                "WBC_Count": 17.5 if has_fever else 7.0, "Lactate": 4.2 if (has_fever and has_chills) else 1.1,
-                "Platelets": 80 if has_chills else 220, "Bilirubin": 1.8, "Creatinine": 1.8
-            }]),
-            "hypertensive_crisis": pd.DataFrame([{
-                "SystolicBP": 190 if (has_hbp and has_chest_pain) else 125,
-                "DiastolicBP": 115 if (has_hbp and has_chest_pain) else 82,
-                "ChestPain": 1 if has_chest_pain else 0, "BlurredVision": 1 if has_confusion else 0,
-                "SevereHeadache": 1 if "headache" in full_text else 0, "TargetOrganDamage": 1 if has_chest_pain else 0
-            }]),
+            "fever": pd.DataFrame([{"BodyTemp": 39.2 if has_fever else 37.0, "Chills": 1 if has_chills else 0, "BodyAches": 1 if has_joint_eye else 0, "FatigueLevel": 3 if has_fever else 1, "Headache": 1 if has_fever else 0, "Cough": 1 if has_resp else 0, "DurationDays": 3}]),
+            "malaria": pd.DataFrame([{"TempSpike": 39.5 if has_fever else 37.0, "ShiveringParoxysm": 1 if has_chills else 0, "SweatingStage": 1 if has_chills else 0, "PlateletCount": 70 if has_chills else 220, "Jaundice": 1 if "yellow" in full_text else 0, "Splenomegaly": 0}]),
+            "typhoid": pd.DataFrame([{"StepladderFever": 1 if has_fever else 0, "FeverDuration": 6, "AbdominalPain": 1 if has_gastro else 0, "RelativeBradycardia": 1 if has_fever else 0, "RoseSpots": 0, "WBC_Count": 11.5}]),
+            "dengue": pd.DataFrame([{"HighFever": 39.6 if has_fever else 37.0, "RetroOrbitalPain": 1 if has_joint_eye else 0, "SevereJointPain": 1 if has_joint_eye else 0, "PlateletCount": 60 if has_joint_eye else 180, "PetechiaeRash": 1 if has_joint_eye else 0, "Hematocrit": 46.0}]),
+            "cold": pd.DataFrame([{"Rhinorrhea": 1 if has_resp else 0, "SoreThroat": 1 if has_resp else 0, "Sneezing": 1 if has_resp else 0, "NasalCongestion": 1 if has_resp else 0, "MildFever": 37.8 if has_fever else 36.8}]),
+            "gastro": pd.DataFrame([{"Nausea": 1 if has_gastro else 0, "VomitingEpisodes": 3 if has_gastro else 0, "DiarrheaEpisodes": 4 if has_gastro else 0, "AbdominalCramps": 1 if has_gastro else 0, "DehydrationScore": 2 if has_gastro else 0}]),
+            "anemia": pd.DataFrame([{"Hemoglobin": 9.0 if has_neuro else 13.5, "RBC_Count": 3.4 if has_neuro else 4.5, "Ferritin": 15 if has_neuro else 80, "Fatigue": 3 if has_neuro else 1, "Pallor": 1 if has_neuro else 0}]),
+            "thyroid": pd.DataFrame([{"TSH": 6.8 if has_neuro else 2.1, "Free_T3": 2.1, "Free_T4": 0.8, "WeightChange": 1, "RestingHR": 72}]),
+            "diabetes": pd.DataFrame([{"HighBP": 1 if rf_hbp else 0, "HighChol": 1 if rf_hchol else 0, "CholCheck": 1, "BMI": 29.0, "Smoker": 1 if rf_smoker else 0, "Stroke": 0, "HeartDiseaseorAttack": 1 if rf_heart else 0, "PhysActivity": 1, "Fruits": 1, "Veggies": 1, "HvyAlcoholConsump": 0, "AnyHealthcare": 1, "NoDocbcCost": 0, "GenHlth": 3, "MentHlth": 2, "PhysHlth": 2, "DiffWalk": 0, "Sex": sex_val, "Age": cdc_age_bin, "Education": 5, "Income": 7}]),
+            "hypertension": pd.DataFrame([{"Age": age, "SystolicBP": 160 if rf_hbp else 125, "DiastolicBP": 95 if rf_hbp else 82, "BMI": 28.5, "SodiumIntake": 2, "PhysicalInactivity": 0, "FamilyHistory": 1, "AlcoholUse": 0, "StressLevel": 3}]),
+            "dementia": pd.DataFrame([{"Age": age, "MMSE_Score": 18 if has_neuro else 29, "CDR_Scale": 1.0 if has_neuro else 0.0, "FunctionalAssessment": 6 if has_neuro else 10, "MemoryLossScore": 1 if has_neuro else 0, "BehavioralProblems": 0, "EducationYears": 14, "APOE4_Allele": 0}]),
+            "heart": pd.DataFrame([{"Age": age, "Sex": sex_val, "ChestPainType": 3 if has_chest else 0, "RestingBP": 145 if rf_hbp else 120, "Cholesterol": 240 if rf_hchol else 190, "FastingBS": 1 if rf_diab else 0, "RestingECG": 1 if has_chest else 0, "MaxHR": 145, "ExerciseAngina": 1 if has_chest else 0, "Oldpeak": 1.5 if has_chest else 0.0, "ST_Slope": 2, "ca": 0, "thal": 2}]),
+            "kidney": pd.DataFrame([{"Age": age, "BloodPressure": 140 if rf_hbp else 120, "SpecificGravity": 1.015, "Albumin": 2 if rf_hbp else 0, "Sugar": 1 if rf_diab else 0, "BloodGlucoseRandom": 180 if rf_diab else 100, "BloodUrea": 55 if rf_hbp else 30, "SerumCreatinine": 2.2 if rf_hbp else 0.9, "Hemoglobin": 10.5 if has_neuro else 13.0, "Hypertension": 1 if rf_hbp else 0, "DiabetesMellitus": 1 if rf_diab else 0}]),
+            "liver": pd.DataFrame([{"Age": age, "Gender": sex_val, "TotalBilirubin": 2.8 if "yellow" in full_text else 0.9, "DirectBilirubin": 1.0, "AlkalinePhosphatase": 230, "AlamineAminotransferase": 65, "AspartateAminotransferase": 75, "TotalProteins": 6.5, "Albumin": 3.2, "AlbuminAndGlobulinRatio": 0.9}]),
+            "pneumonia": pd.DataFrame([{"Age": age, "SpO2": 91.0 if has_resp else 98.0, "RespiratoryRate": 26 if has_resp else 18, "FeverTemp": 38.8 if has_fever else 37.0, "WBC_Count": 15.5 if has_fever else 7.5, "DyspneaSeverity": 1 if has_resp else 0, "CoughType": 1 if has_resp else 0, "ChestPain": 1 if has_chest else 0, "Smoker": 1 if rf_smoker else 0}]),
+            "asthma": pd.DataFrame([{"Wheezing": 1 if has_resp else 0, "PeakExpiratoryFlow": 65 if has_resp else 95, "NocturnalCough": 1 if has_resp else 0, "AllergenTrigger": 1, "ExertionalDyspnea": 1 if has_resp else 0}]),
+            "cancer": pd.DataFrame([{"mean radius": 16.2 if "lump" in full_text else 14.0, "mean texture": 21.0, "mean perimeter": 105.0, "mean area": 800.0, "mean smoothness": 0.11, "mean compactness": 0.14, "mean concavity": 0.12, "mean concave points": 0.08, "mean symmetry": 0.20, "mean fractal dimension": 0.065}]),
+            "stroke": pd.DataFrame([{"Gender": sex_val, "Age": age, "Hypertension": 1 if rf_hbp else 0, "HeartDisease": 1 if rf_heart else 0, "EverMarried": 1, "AvgGlucoseLevel": 200 if rf_diab else 100, "BMI": 29.0, "SmokingStatus": 1 if rf_smoker else 0}]),
+            "sepsis": pd.DataFrame([{"HeartRate": 115 if (has_fever and has_chills) else 75, "SysBP": 88 if (has_fever and has_chills) else 120, "RespRate": 26 if (has_fever and has_chills) else 18, "BodyTemp": 39.2 if has_fever else 37.0, "WBC_Count": 17.5 if has_fever else 7.0, "Lactate": 4.2 if (has_fever and has_chills) else 1.1, "Platelets": 80 if has_chills else 220, "Bilirubin": 1.8, "Creatinine": 1.8}]),
+            "hypertensive_crisis": pd.DataFrame([{"SystolicBP": 190 if (rf_hbp and has_chest) else 125, "DiastolicBP": 115 if (rf_hbp and has_chest) else 82, "ChestPain": 1 if has_chest else 0, "BlurredVision": 1 if has_neuro else 0, "SevereHeadache": 1 if has_fever else 0, "TargetOrganDamage": 1 if has_chest else 0}]),
         }
 
-        ada_results = []
+        results = []
         for key in DISEASE_CONFIG:
             res = predict_disease_risk(key, inputs_ada[key])
             if res:
-                ada_results.append(res)
+                results.append(res)
 
-        ada_results.sort(key=lambda x: x["percentage"], reverse=True)
+        results.sort(key=lambda x: x["percentage"], reverse=True)
+        top = results[0]
 
-        if ada_results:
-            top_match = ada_results[0]
+        st.markdown("<div class='ada-step-box'>", unsafe_allow_html=True)
+        
+        # TRIAGE BADGE
+        if top["percentage"] > 65 and "CRITICAL" in top["category_tier"]:
+            st.markdown("<div class='ada-badge-emergency'>🔴 Emergency Triage: Seek Immediate Emergency Care</div>", unsafe_allow_html=True)
+        elif top["percentage"] > 50:
+            st.markdown("<div class='ada-badge-doctor'>🟡 Medical Guidance: Doctor Consultation Recommended (within 24h)</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div class='ada-badge-selfcare'>🟢 Self Care: Home Rest & Symptom Monitoring</div>", unsafe_allow_html=True)
+
+        st.write("")
+        c_r1, c_r2 = st.columns([1.2, 1])
+
+        with c_r1:
+            st.markdown(f"### Top Suspected Condition: {top['icon']} {top['disease_name']}")
+            badge_cls = top["badge_cls"]
+            category_str = top["category"]
+            percentage_val = top["percentage"]
+            st.markdown(f"<div class='{badge_cls}'>Match Score: {percentage_val:.1f}% ({category_str})</div>", unsafe_allow_html=True)
+
+            st.write("")
+            st.write(f"**Medical Category**: {top['category_tier']}")
+            st.write(f"**AI Model Baseline**: {top['metadata']['best_model_name']} (ROC-AUC: {top['metadata']['test_roc_auc']:.3f})")
+
+            st.markdown("#### 💡 Clinical Recommendation")
+            if top["percentage"] > 65:
+                st.error("🚨 Go to the nearest emergency room or call emergency medical services immediately.")
+            elif top["percentage"] > 40:
+                st.warning("👨‍⚕️ Book an appointment with a General Physician. Request a CBC blood panel and lab tests.")
+            else:
+                st.success("🏠 Rest, stay hydrated, monitor your temperature, and consult a doctor if symptoms persist past 3 days.")
+
+        with c_r2:
+            st.markdown("### 📋 Ranked Differential Diagnoses")
+            for r in results[:5]:
+                st.write(f"**{r['icon']} {r['disease_name']}** ({r['percentage']:.1f}%)")
+                st.progress(min(1.0, r['percentage'] / 100.0))
+
+        if top["explainer"] is not None and top["transformed_X"] is not None:
             st.markdown("---")
-            st.subheader("🩺 Ada AI Differential Triage Summary")
+            st.subheader(f"🔬 SHAP Clinical Attribution: Why Ada AI Suspects {top['disease_name']}")
+            try:
+                shap_vals = top["explainer"](top["transformed_X"])
+                fig_shap, ax = plt.subplots(figsize=(8, 4))
+                shap.plots.waterfall(shap_vals[0], show=False)
+                st.pyplot(fig_shap)
+            except Exception as e:
+                st.warning(f"SHAP chart notice: {e}")
 
-            if top_match["category"] == "High Risk" and "CRITICAL" in top_match["category_tier"]:
-                st.markdown(
-                    f"""
-                    <div class="critical-alert">
-                        🚨 EMERGENCY TRIAGE RED ALERT: High Risk Detected for {top_match['disease_name']} ({top_match['percentage']:.1f}%)!
-                        Please seek immediate emergency medical care / ER triage!
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            res_col1, res_col2 = st.columns([1.2, 1])
-
-            with res_col1:
-                st.markdown(f"### Most Suspected Condition: {top_match['icon']} {top_match['disease_name']}")
-                
-                badge_cls = top_match["badge_cls"]
-                category_str = top_match["category"]
-                percentage_val = top_match["percentage"]
-                st.markdown(f"<div class='{badge_cls}'>Likelihood Match: {percentage_val:.1f}% ({category_str})</div>", unsafe_allow_html=True)
-                
-                st.write("")
-                st.write(f"**Diagnostic Category**: {top_match['category_tier']}")
-                st.write(f"**AI Model Baseline**: {top_match['metadata']['best_model_name']} (ROC-AUC: {top_match['metadata']['test_roc_auc']:.3f})")
-
-                st.markdown("#### 💡 Ada Recommended Action")
-                if top_match["percentage"] > 65:
-                    if "CRITICAL" in top_match["category_tier"]:
-                        st.error("🚨 **Immediate ER Triage Required**: Go to an emergency department or call emergency services right away.")
-                    else:
-                        st.warning("👨‍⚕️ **Doctor Visit Recommended**: Schedule an appointment with a physician or clinic within 24-48 hours. Request relevant blood panel and diagnostic tests.")
-                elif top_match["percentage"] > 35:
-                    st.info("🏥 **Monitor Symptoms**: Keep track of your temperature and symptoms. Consult a doctor if symptoms worsen or persist past 3 days.")
-                else:
-                    st.success("🏠 **Self-Care & Hydration**: Your symptom profile indicates low risk. Get rest, drink fluids, and monitor how you feel.")
-
-            with res_col2:
-                st.markdown("### 📋 Top Differential Diagnoses (Possibilities)")
-                df_top = pd.DataFrame([
-                    {"Condition": f"{r['icon']} {r['disease_name']}", "Match %": f"{r['percentage']:.1f}%", "Risk": r['category']}
-                    for r in ada_results[:6]
-                ])
-                st.dataframe(df_top, use_container_width=True)
-
-            if top_match["explainer"] is not None and top_match["transformed_X"] is not None:
-                st.markdown("---")
-                st.subheader(f"🔬 Why AI Suspects {top_match['disease_name']} (SHAP Feature Attribution)")
-                try:
-                    shap_vals = top_match["explainer"](top_match["transformed_X"])
-                    fig_shap, ax = plt.subplots(figsize=(8, 4))
-                    shap.plots.waterfall(shap_vals[0], show=False)
-                    st.pyplot(fig_shap)
-                except Exception as e:
-                    st.warning(f"SHAP explanation notice: {e}")
+        st.markdown("---")
+        if st.button("🔄 Start New Ada Assessment", type="primary"):
+            st.session_state.ada_step = 1
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------
@@ -918,7 +919,7 @@ elif page == "ℹ️ Architecture & Defense":
         ### 🛡️ Enterprise Guarantees
         1. **Zero Data Leakage**: Feature imputations, scaling, and encodings are isolated inside Scikit-Learn ColumnTransformer pipelines fitted strictly on training folds.
         2. **20-Disease Universal Diagnostic Suite**: Covers common everyday ailments (Fever, Flu, Dengue, Malaria, Typhoid, Cold, Gastroenteritis) alongside chronic, severe, and emergency critical conditions.
-        3. **🤖 Ada-Style AI Symptom Assistant**: Interactive symptom intake & automatic multi-disease triage without requiring clinical medical terminology knowledge.
+        3. **🤖 Ada Interactive AI Health Assessment**: Guided 4-step medical consultation wizard with targeted follow-up questioning and triage badges.
         4. **Explainable AI**: SHAP explainers integrated for all 20 trained models.
         """
     )
