@@ -603,8 +603,11 @@ elif page in ["🤒 Everyday Fever, Flu & Infection Diagnostic", "🩸 Metabolic
                     st.plotly_chart(fig, use_container_width=True)
 
                 with c_info:
-                    st.markdown(f"### Assessment Outcome")
-                    st.markdown(f"<div class='{result[\"badge_cls\"]}'>{result['category']} ({result['percentage']:.1f}%)</div>", unsafe_allow_html=True)
+                    st.markdown("### Assessment Outcome")
+                    badge_cls = result["badge_cls"]
+                    category_str = result["category"]
+                    percentage_val = result["percentage"]
+                    st.markdown(f"<div class='{badge_cls}'>{category_str} ({percentage_val:.1f}%)</div>", unsafe_allow_html=True)
                     st.write("")
                     st.info(f"Model deployed: **{result['metadata']['best_model_name']}** (Test ROC-AUC: {result['metadata']['test_roc_auc']:.3f})")
 
